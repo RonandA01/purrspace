@@ -17,7 +17,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
-import { PawPrintIcon } from "./PawPrintIcon";
+import { CatFaceLogo } from "./CatFaceLogo";
 import { NotificationBell } from "./NotificationBell";
 import { supabase } from "@/lib/supabase";
 import { useSession } from "@/hooks/useSession";
@@ -53,9 +53,7 @@ export function Sidebar() {
     <aside className="flex h-screen w-64 flex-col border-r border-border bg-sidebar px-4 py-6 sticky top-0">
       {/* Logo */}
       <Link href="/" className="mb-8 flex items-center gap-2.5 px-2">
-        <span className="text-paw-pink">
-          <PawPrintIcon size={28} />
-        </span>
+        <CatFaceLogo size={36} className="text-paw-pink shrink-0" />
         <span className="text-xl font-bold tracking-tight text-foreground">
           Purr<span className="text-paw-pink">Space</span>
         </span>
