@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Auth } from "@supabase/auth-ui-react";
 import { ThemeSupa } from "@supabase/auth-ui-shared";
 import { supabase } from "@/lib/supabase";
@@ -9,19 +9,26 @@ import { PawPrintIcon } from "./PawPrintIcon";
 
 export function CatAuth() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // Where to send the user after login (?next=/profile, etc.)
+  const next = searchParams.get("next") ?? "/";
 
-  // Redirect to home once authenticated
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event) => {
         if (event === "SIGNED_IN") {
-          router.push("/");
+          router.push(next);
           router.refresh();
         }
       }
     );
     return () => subscription.unsubscribe();
-  }, [router]);
+  }, [router, next]);
+
+  const redirectTo =
+    typeof window !== "undefined"
+      ? `${window.location.origin}${next}`
+      : next;
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -73,11 +80,7 @@ export function CatAuth() {
               },
             }}
             providers={["google", "github"]}
-            redirectTo={
-              typeof window !== "undefined"
-                ? `${window.location.origin}/`
-                : "/"
-            }
+            redirectTo={redirectTo}
           />
         </div>
       </div>
