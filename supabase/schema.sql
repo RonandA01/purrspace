@@ -514,12 +514,34 @@ create policy "Users can update own avatars"
   using (bucket_id = 'avatars' and auth.uid()::text = (storage.foldername(name))[1]);
 
 -- ── 20. REALTIME ─────────────────────────────────────────────
-alter publication supabase_realtime add table public.posts;
-alter publication supabase_realtime add table public.likes;
-alter publication supabase_realtime add table public.comments;
-alter publication supabase_realtime add table public.notifications;
-alter publication supabase_realtime add table public.direct_messages;
-alter publication supabase_realtime add table public.conversations;
+-- Add each table only if not already a member of the publication
+do $$
+declare
+  pub_name text := 'supabase_realtime';
+  tbl      record;
+begin
+  for tbl in
+    select unnest(array[
+      'public.posts',
+      'public.likes',
+      'public.comments',
+      'public.notifications',
+      'public.direct_messages',
+      'public.conversations'
+    ]) as relname
+  loop
+    if not exists (
+      select 1
+      from   pg_publication_tables
+      where  pubname   = pub_name
+        and  schemaname = split_part(tbl.relname, '.', 1)
+        and  tablename  = split_part(tbl.relname, '.', 2)
+    ) then
+      execute format('alter publication %I add table %s', pub_name, tbl.relname);
+    end if;
+  end loop;
+end;
+$$;
 
 -- ── 21. INDEXES for performance ──────────────────────────────
 create index if not exists idx_posts_author_id   on public.posts(author_id);
