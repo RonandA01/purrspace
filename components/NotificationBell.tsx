@@ -49,6 +49,8 @@ export function NotificationBell({ userId }: { userId: string }) {
   useEffect(() => {
     if (!userId) return;
 
+    let mounted = true;
+
     const channel = supabase
       .channel(`notifications:${userId}`)
       .on(
@@ -60,19 +62,22 @@ export function NotificationBell({ userId }: { userId: string }) {
           filter: `user_id=eq.${userId}`,
         },
         async (payload) => {
-          // Fetch with actor
+          if (!mounted) return;
           const { data } = await supabase
             .from("notifications")
             .select("*, actor:profiles(*)")
             .eq("id", payload.new.id)
             .single();
-          if (data)
+          if (data && mounted)
             setNotifications((prev) => [data as Notification, ...prev.slice(0, 19)]);
         }
       )
       .subscribe();
 
-    return () => { channel.unsubscribe(); };
+    return () => {
+      mounted = false;
+      supabase.removeChannel(channel);
+    };
   }, [userId]);
 
   // ── Close on outside click ────────────────────────────────

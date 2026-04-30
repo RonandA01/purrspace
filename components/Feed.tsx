@@ -39,30 +39,28 @@ export function Feed() {
     let mounted = true;
 
     const loadAndSubscribe = async () => {
-      // Get current user (best-effort; feed is public either way)
       const { data: { user } } = await supabase.auth.getUser();
       const initial = await fetchPosts(user?.id);
-      if (mounted) {
-        setPosts(initial);
-        setLoading(false);
-      }
+
+      if (!mounted) return; // unmounted while fetching — skip subscription entirely
+
+      setPosts(initial);
+      setLoading(false);
 
       // ── Realtime: posts table ──────────────────────────────
-      channelRef.current = supabase
+      const channel = supabase
         .channel("public:posts")
         .on(
           "postgres_changes",
           { event: "INSERT", schema: "public", table: "posts" },
           async (payload) => {
-            // Fetch full post with author
             const { data } = await supabase
               .from("posts")
               .select("*, author:profiles(*)")
               .eq("id", payload.new.id)
               .single();
-            if (data && mounted) {
+            if (data && mounted)
               setPosts((prev) => [{ ...data, liked_by_me: false }, ...prev]);
-            }
           }
         )
         .on(
@@ -73,12 +71,11 @@ export function Feed() {
               setPosts((prev) => prev.filter((p) => p.id !== payload.old.id));
           }
         )
-        // ── Realtime: like_count updates ──────────────────────
         .on(
           "postgres_changes",
           { event: "UPDATE", schema: "public", table: "posts" },
           (payload) => {
-            if (mounted) {
+            if (mounted)
               setPosts((prev) =>
                 prev.map((p) =>
                   p.id === payload.new.id
@@ -86,17 +83,21 @@ export function Feed() {
                     : p
                 )
               );
-            }
           }
         )
         .subscribe();
+
+      channelRef.current = channel;
     };
 
     loadAndSubscribe();
 
     return () => {
       mounted = false;
-      channelRef.current?.unsubscribe();
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
     };
   }, []);
 
