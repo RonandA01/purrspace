@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "PurrSpace – Your Cat-Vibes Social Feed",
   description: "A cozy, minimal social space with cat energy.",
-  icons: { icon: "/cat-logo.svg", shortcut: "/cat-logo.svg" },
+  // app/icon.svg is picked up automatically by Next.js App Router
 };
 
 export default function RootLayout({
