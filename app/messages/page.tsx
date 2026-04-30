@@ -1,11 +1,13 @@
-import { ComingSoon } from "@/components/ComingSoon";
+import { MessagesView } from "@/components/MessagesView";
+import { Sidebar } from "@/components/Sidebar";
 
 export default function MessagesPage() {
   return (
-    <ComingSoon
-      title="Purr-Mail"
-      emoji="✉️"
-      description="Your direct messages with fellow cat enthusiasts. Sliding into DMs, purr-style."
-    />
+    <div className="flex min-h-screen bg-background">
+      <Sidebar />
+      <main className="flex flex-1 overflow-hidden">
+        <MessagesView />
+      </main>
+    </div>
   );
 }

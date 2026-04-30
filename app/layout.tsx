@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Toaster } from "sonner";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -15,7 +16,6 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "PurrSpace – Your Cat-Vibes Social Feed",
   description: "A cozy, minimal social space with cat energy.",
-  // app/icon.svg is picked up automatically by Next.js App Router
 };
 
 export default function RootLayout({
@@ -26,7 +26,21 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full bg-background text-foreground">{children}</body>
+      <body className="min-h-full bg-background text-foreground">
+        {children}
+        <Toaster
+          position="bottom-right"
+          toastOptions={{
+            style: {
+              background: "var(--card)",
+              color: "var(--foreground)",
+              border: "1px solid var(--border)",
+              borderRadius: "1rem",
+              fontSize: "0.875rem",
+            },
+          }}
+        />
+      </body>
     </html>
   );
 }

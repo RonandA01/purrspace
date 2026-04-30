@@ -5,6 +5,7 @@ import type { NextRequest } from "next/server";
 // Routes that bypass auth check entirely
 const PUBLIC_PATHS = [
   "/login",
+  "/terms",
   "/auth/callback", // Must be public — Supabase exchanges the code here before session exists
 ];
 

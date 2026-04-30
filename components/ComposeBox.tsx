@@ -8,11 +8,12 @@ import { PawPrintIcon } from "./PawPrintIcon";
 import { supabase } from "@/lib/supabase";
 import { uploadPostImage } from "@/lib/uploadImage";
 import { useSession } from "@/hooks/useSession";
+import { toast } from "sonner";
+import type { Post } from "@/types";
 
 const MAX_CHARS = 280;
-const TIMEOUT_MS = 10_000; // 10 s hard limit — prevents infinite "Posting…"
+const TIMEOUT_MS = 10_000;
 
-/** Races a promise (or thenable) against a timeout. Throws on timeout. */
 function withTimeout<T>(promise: PromiseLike<T>, ms: number): Promise<T> {
   return Promise.race([
     promise,
@@ -23,13 +24,11 @@ function withTimeout<T>(promise: PromiseLike<T>, ms: number): Promise<T> {
 }
 
 export function ComposeBox() {
-  // Use the session user directly — avoids a second getUser() call that can hang
   const { user, profile } = useSession();
   const [content, setContent] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const remaining = MAX_CHARS - content.length;
@@ -53,38 +52,82 @@ export function ComposeBox() {
   const handleSubmit = async () => {
     if (!canPost || !user) return;
     setSubmitting(true);
-    setError(null);
+
+    // Optimistic: immediately push post into feed via custom event
+    const tempId = `opt-${Date.now()}`;
+    const optimisticPost: Post = {
+      id: tempId,
+      author_id: user.id,
+      content: content.trim(),
+      image_url: imagePreview,
+      like_count: 0,
+      comment_count: 0,
+      share_count: 0,
+      shared_from_id: null,
+      created_at: new Date().toISOString(),
+      author: profile ?? undefined,
+      liked_by_me: false,
+      my_reaction: null,
+      pawmarked_by_me: false,
+    };
+    window.dispatchEvent(new CustomEvent("purrspace:new-post", { detail: optimisticPost }));
+
+    // Clear form immediately so the user can type the next post
+    const capturedContent = content.trim();
+    const capturedImageFile = imageFile;
+    setContent("");
+    removeImage();
 
     try {
       let image_url: string | null = null;
 
-      if (imageFile) {
+      if (capturedImageFile) {
         image_url = await withTimeout(
-          uploadPostImage(imageFile, user.id),
+          uploadPostImage(capturedImageFile, user.id),
           TIMEOUT_MS
         );
       }
 
-      // .then(r => r) converts the Supabase thenable into a real Promise
-      const { error: insertError } = await withTimeout(
+      const { error: insertError, data } = await withTimeout(
         supabase
           .from("posts")
-          .insert({ author_id: user.id, content: content.trim(), image_url })
+          .insert({ author_id: user.id, content: capturedContent, image_url })
+          .select("*, author:profiles(*)")
+          .single()
           .then((r) => r),
         TIMEOUT_MS
       );
 
       if (insertError) {
-        // PostgrestError has .message but is not instanceof Error
         throw new Error(
           (insertError as { message?: string }).message ?? "Failed to post. Please try again."
         );
       }
 
-      setContent("");
-      removeImage();
+      // Replace the optimistic post with the real one (Feed deduplicates by id)
+      if (data) {
+        const realPost: Post = {
+          ...data,
+          liked_by_me: false,
+          my_reaction: null,
+          pawmarked_by_me: false,
+        };
+        // Dispatch real post; Feed will add it and skip the temp id when realtime fires
+        window.dispatchEvent(new CustomEvent("purrspace:new-post", { detail: realPost }));
+        // Remove the optimistic temp entry
+        window.dispatchEvent(
+          new CustomEvent("purrspace:remove-post", { detail: { id: tempId } })
+        );
+      }
+
+      toast("Posted! 🐾", { description: "Your post is live." });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+      const msg = err instanceof Error ? err.message : "Something went wrong. Please try again.";
+      toast.error(msg);
+      // Remove optimistic entry on failure
+      window.dispatchEvent(
+        new CustomEvent("purrspace:remove-post", { detail: { id: tempId } })
+      );
     } finally {
       setSubmitting(false);
     }
@@ -144,20 +187,6 @@ export function ComposeBox() {
         )}
       </AnimatePresence>
 
-      {/* Error message */}
-      <AnimatePresence>
-        {error && (
-          <motion.p
-            initial={{ opacity: 0, y: -4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            className="text-xs text-destructive px-1 flex items-center gap-1"
-          >
-            ⚠️ {error}
-          </motion.p>
-        )}
-      </AnimatePresence>
-
       <div className="flex items-center justify-between pt-1 border-t border-border/40">
         <div className="flex items-center gap-2">
           <motion.button
@@ -179,7 +208,9 @@ export function ComposeBox() {
             onChange={handleImagePick}
           />
 
-          <span className={`text-xs ${overLimit ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
+          <span
+            className={`text-xs ${overLimit ? "text-destructive font-semibold" : "text-muted-foreground"}`}
+          >
             {remaining}
           </span>
         </div>

@@ -94,7 +94,8 @@ export function Sidebar() {
         })}
 
         {/* Whiskers (notifications) — inline so it can hold live count */}
-        <div
+        <Link
+          href="/alerts"
           className={cn(
             "relative flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition-colors",
             pathname === "/alerts"
@@ -116,7 +117,7 @@ export function Sidebar() {
               {user && <NotificationBell userId={user.id} />}
             </span>
           </span>
-        </div>
+        </Link>
       </nav>
 
       <Separator className="my-4 bg-border" />

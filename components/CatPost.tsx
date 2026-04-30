@@ -1,13 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { motion } from "framer-motion";
+import Link from "next/link";
+import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { ChatCircle, ShareNetwork, BookmarkSimple } from "@phosphor-icons/react";
-import { PawLikeButton } from "./PawLikeButton";
-import { supabase } from "@/lib/supabase";
+import { ChatCircle, ArrowsCounterClockwise } from "@phosphor-icons/react";
+import { ReactionsButton } from "./ReactionsButton";
+import { CommentsSection } from "./CommentsSection";
+import { ShareButton } from "./ShareButton";
+import { PawmarkButton } from "./PawmarkButton";
 import type { Post } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -26,56 +28,32 @@ function formatRelativeTime(dateStr: string): string {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-export function CatPost({ post, className }: CatPostProps) {
-  const [liked, setLiked] = useState(post.liked_by_me ?? false);
-  const [likeCount, setLikeCount] = useState(post.like_count ?? 0);
-  const [pending, setPending] = useState(false);
-
-  const handleLikeToggle = async () => {
-    if (pending) return;
-
-    // Optimistic update
-    const wasLiked = liked;
-    setLiked(!wasLiked);
-    setLikeCount((c) => (wasLiked ? c - 1 : c + 1));
-    setPending(true);
-
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        // Revert if not logged in
-        setLiked(wasLiked);
-        setLikeCount((c) => (wasLiked ? c + 1 : c - 1));
-        return;
-      }
-
-      if (wasLiked) {
-        await supabase
-          .from("likes")
-          .delete()
-          .eq("post_id", post.id)
-          .eq("user_id", user.id);
-      } else {
-        await supabase
-          .from("likes")
-          .insert({ post_id: post.id, user_id: user.id });
-      }
-    } catch {
-      // Revert on error
-      setLiked(wasLiked);
-      setLikeCount((c) => (wasLiked ? c + 1 : c - 1));
-    } finally {
-      setPending(false);
-    }
-  };
-
-  const initials =
-    post.author?.display_name
+function initials(name?: string | null) {
+  return (
+    name
       ?.split(" ")
       .map((w) => w[0])
       .join("")
       .toUpperCase()
-      .slice(0, 2) ?? "??";
+      .slice(0, 2) ?? "??"
+  );
+}
+
+export function CatPost({ post, className }: CatPostProps) {
+  const [likeCount, setLikeCount] = useState(post.like_count ?? 0);
+  const [myReaction, setMyReaction] = useState<string | null>(post.my_reaction ?? null);
+  const [commentCount, setCommentCount] = useState(post.comment_count ?? 0);
+  const [shareCount, setShareCount] = useState(post.share_count ?? 0);
+  const [pawmarked, setPawmarked] = useState(post.pawmarked_by_me ?? false);
+  const [showComments, setShowComments] = useState(false);
+
+  const handleReactionChange = (emoji: string | null, delta: number) => {
+    setMyReaction(emoji);
+    setLikeCount((c) => Math.max(0, c + delta));
+  };
+
+  const isRepost = Boolean(post.shared_from_id);
+  const displayAuthor = post.author;
 
   return (
     <motion.div
@@ -85,33 +63,41 @@ export function CatPost({ post, className }: CatPostProps) {
       className={cn("w-full", className)}
     >
       <Card className="rounded-3xl border-border/60 bg-card shadow-sm hover:shadow-md transition-shadow duration-200">
+
+        {/* Repost banner */}
+        {isRepost && post.shared_from && (
+          <div className="flex items-center gap-1.5 px-5 pt-3 text-[11px] text-muted-foreground">
+            <ArrowsCounterClockwise size={11} weight="bold" />
+            <span className="font-medium">
+              {displayAuthor?.display_name ?? "Someone"} shared
+            </span>
+          </div>
+        )}
+
         <CardHeader className="flex flex-row items-center gap-3 pb-2 pt-4 px-5">
-          <Avatar className="h-10 w-10 ring-2 ring-paw-pink/30">
-            <AvatarImage
-              src={post.author?.avatar_url ?? undefined}
-              alt={post.author?.display_name}
-            />
-            <AvatarFallback className="bg-paw-pink-light text-paw-pink font-semibold text-sm">
-              {initials}
-            </AvatarFallback>
-          </Avatar>
+          <Link href={`/profile/${displayAuthor?.username ?? ""}`}>
+            <Avatar className="h-10 w-10 ring-2 ring-paw-pink/30 hover:ring-paw-pink/60 transition-all">
+              <AvatarImage
+                src={displayAuthor?.avatar_url ?? undefined}
+                alt={displayAuthor?.display_name}
+              />
+              <AvatarFallback className="bg-paw-pink-light text-paw-pink font-semibold text-sm">
+                {initials(displayAuthor?.display_name)}
+              </AvatarFallback>
+            </Avatar>
+          </Link>
 
           <div className="flex-1 min-w-0">
-            <p className="font-semibold text-sm leading-tight truncate">
-              {post.author?.display_name ?? "Anonymous"}
-            </p>
+            <Link href={`/profile/${displayAuthor?.username ?? ""}`} className="hover:underline">
+              <p className="font-semibold text-sm leading-tight truncate">
+                {displayAuthor?.display_name ?? "Anonymous"}
+              </p>
+            </Link>
             <p className="text-xs text-muted-foreground">
-              @{post.author?.username ?? "unknown"} ·{" "}
+              @{displayAuthor?.username ?? "unknown"} ·{" "}
               {formatRelativeTime(post.created_at)}
             </p>
           </div>
-
-          <Badge
-            variant="outline"
-            className="text-[10px] border-catnip-green text-catnip-green rounded-full px-2"
-          >
-            🐱
-          </Badge>
         </CardHeader>
 
         <CardContent className="px-5 pb-4 space-y-3">
@@ -131,46 +117,92 @@ export function CatPost({ post, className }: CatPostProps) {
             </div>
           )}
 
+          {/* Shared original post preview */}
+          {isRepost && post.shared_from && (
+            <div className="rounded-2xl border border-border/60 bg-secondary/40 px-4 py-3 space-y-1">
+              <div className="flex items-center gap-1.5">
+                <Avatar className="h-5 w-5">
+                  <AvatarImage src={post.shared_from.author?.avatar_url ?? undefined} />
+                  <AvatarFallback className="bg-paw-pink-light text-paw-pink text-[9px] font-bold">
+                    {initials(post.shared_from.author?.display_name)}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="text-xs font-semibold">
+                  {post.shared_from.author?.display_name}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  @{post.shared_from.author?.username}
+                </span>
+              </div>
+              <p className="text-xs text-foreground/80 leading-relaxed line-clamp-3">
+                {post.shared_from.content}
+              </p>
+            </div>
+          )}
+
           {/* Action bar */}
           <div className="flex items-center gap-1 pt-1 -mx-1">
-            <PawLikeButton
-              liked={liked}
+            {/* Reactions — hold for picker, tap for paw */}
+            <ReactionsButton
+              postId={post.id}
+              myReaction={myReaction}
               count={likeCount}
-              onToggle={handleLikeToggle}
-              disabled={pending}
+              onReactionChange={handleReactionChange}
             />
 
+            {/* Comments toggle */}
             <motion.button
               whileHover={{ scale: 1.08 }}
               whileTap={{ scale: 0.88 }}
               transition={{ type: "spring", stiffness: 600, damping: 20 }}
-              className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm text-muted-foreground hover:bg-catnip-green/15 hover:text-catnip-green transition-colors"
-              aria-label="Comment"
+              onClick={() => setShowComments((s) => !s)}
+              className={cn(
+                "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition-colors",
+                showComments
+                  ? "bg-catnip-green/20 text-catnip-green"
+                  : "text-muted-foreground hover:bg-catnip-green/15 hover:text-catnip-green"
+              )}
+              aria-label="Toggle comments"
             >
-              <ChatCircle size={16} weight="duotone" />
-              <span>Reply</span>
+              <ChatCircle size={16} weight={showComments ? "fill" : "duotone"} />
+              {commentCount > 0 && <span>{commentCount}</span>}
             </motion.button>
 
-            <motion.button
-              whileHover={{ scale: 1.08 }}
-              whileTap={{ scale: 0.88 }}
-              transition={{ type: "spring", stiffness: 600, damping: 20 }}
-              className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm text-muted-foreground hover:bg-secondary transition-colors"
-              aria-label="Share"
-            >
-              <ShareNetwork size={16} weight="duotone" />
-            </motion.button>
+            {/* Share */}
+            <ShareButton
+              post={post}
+              shareCount={shareCount}
+              onShare={() => setShareCount((c) => c + 1)}
+            />
 
-            <motion.button
-              whileHover={{ scale: 1.08 }}
-              whileTap={{ scale: 0.88 }}
-              transition={{ type: "spring", stiffness: 600, damping: 20 }}
-              className="ml-auto flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm text-muted-foreground hover:bg-secondary transition-colors"
-              aria-label="Save"
-            >
-              <BookmarkSimple size={16} weight="duotone" />
-            </motion.button>
+            {/* Pawmark — pinned right */}
+            <div className="ml-auto">
+              <PawmarkButton
+                postId={post.id}
+                pawmarked={pawmarked}
+                onToggle={setPawmarked}
+              />
+            </div>
           </div>
+
+          {/* Comments section */}
+          <AnimatePresence>
+            {showComments && (
+              <motion.div
+                key="comments"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ type: "spring", stiffness: 400, damping: 34 }}
+              >
+                <CommentsSection
+                  postId={post.id}
+                  commentCount={commentCount}
+                  onCountChange={(delta) => setCommentCount((c) => Math.max(0, c + delta))}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </CardContent>
       </Card>
     </motion.div>
