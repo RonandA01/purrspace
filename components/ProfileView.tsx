@@ -59,7 +59,8 @@ export function ProfileView({ username }: ProfileViewProps) {
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
 
-  const isOwnProfile = !username || profile?.id === user?.id;
+  // Only true when the loaded profile actually belongs to the signed-in user
+  const isOwnProfile = Boolean(user && profile && profile.id === user.id);
 
   // Load profile
   useEffect(() => {
@@ -154,7 +155,7 @@ export function ProfileView({ username }: ProfileViewProps) {
   }, [profile, user]);
 
   const openEdit = () => {
-    if (!profile) return;
+    if (!profile || !user || profile.id !== user.id) return;
     setEditName(profile.display_name);
     setEditUsername(profile.username);
     setEditBio(profile.bio ?? "");
@@ -166,7 +167,12 @@ export function ProfileView({ username }: ProfileViewProps) {
   };
 
   const saveProfile = async () => {
-    if (!user || !profile) return;
+    // Guard: never allow saving another user's profile
+    if (!user || !profile || profile.id !== user.id) {
+      toast.error("You can only edit your own profile.");
+      setSaving(false);
+      return;
+    }
     setSaving(true);
 
     const updates: Partial<Profile> = {
@@ -183,20 +189,29 @@ export function ProfileView({ username }: ProfileViewProps) {
       is_private: editIsPrivate,
     };
 
-    const { error } = await supabase
-      .from("profiles")
-      .update(updates)
-      .eq("id", user.id)
-      .then((r) => r);
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update(updates)
+        .eq("id", user.id)
+        .then((r) => r);
 
-    if (error) {
-      toast.error("Failed to save: " + error.message);
-    } else {
-      setProfile((p) => (p ? { ...p, ...updates } : p));
-      toast("Profile updated! 🐾");
-      setIsEditing(false);
+      if (error) {
+        // RLS violation returns a PostgrestError — show the message
+        toast.error("Failed to save: " + (error.message ?? "Unknown error"));
+      } else {
+        setProfile((p) => (p ? { ...p, ...updates } : p));
+        toast("Profile updated! 🐾");
+        setIsEditing(false);
+      }
+    } catch (err) {
+      // Network failure, expired session, etc.
+      const msg = err instanceof Error ? err.message : "Something went wrong.";
+      toast.error(msg);
+    } finally {
+      // Always unblock the button — no more infinite "Saving…"
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   const uploadAvatar = async (file: File) => {
