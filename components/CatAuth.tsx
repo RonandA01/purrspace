@@ -1,11 +1,28 @@
 "use client";
 
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Auth } from "@supabase/auth-ui-react";
 import { ThemeSupa } from "@supabase/auth-ui-shared";
 import { supabase } from "@/lib/supabase";
 import { PawPrintIcon } from "./PawPrintIcon";
 
 export function CatAuth() {
+  const router = useRouter();
+
+  // Redirect to home once authenticated
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event) => {
+        if (event === "SIGNED_IN") {
+          router.push("/");
+          router.refresh();
+        }
+      }
+    );
+    return () => subscription.unsubscribe();
+  }, [router]);
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-sm space-y-6">
@@ -56,7 +73,11 @@ export function CatAuth() {
               },
             }}
             providers={["google", "github"]}
-            redirectTo={`${typeof window !== "undefined" ? window.location.origin : ""}/`}
+            redirectTo={
+              typeof window !== "undefined"
+                ? `${window.location.origin}/`
+                : "/"
+            }
           />
         </div>
       </div>

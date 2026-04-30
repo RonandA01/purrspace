@@ -1,47 +1,178 @@
 "use client";
 
-import { useState } from "react";
-import { motion } from "framer-motion";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { useRef, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Image as ImageIcon, X } from "@phosphor-icons/react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PawPrintIcon } from "./PawPrintIcon";
+import { supabase } from "@/lib/supabase";
+import { uploadPostImage } from "@/lib/uploadImage";
+import { useSession } from "@/hooks/useSession";
+
+const MAX_CHARS = 280;
 
 export function ComposeBox() {
-  const [value, setValue] = useState("");
-  const MAX = 280;
-  const remaining = MAX - value.length;
+  const { user, profile } = useSession();
+  const [content, setContent] = useState("");
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const remaining = MAX_CHARS - content.length;
   const overLimit = remaining < 0;
+  const canPost = content.trim().length > 0 && !overLimit && !submitting;
+
+  const handleImagePick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+  };
+
+  const removeImage = () => {
+    setImageFile(null);
+    if (imagePreview) URL.revokeObjectURL(imagePreview);
+    setImagePreview(null);
+    if (fileRef.current) fileRef.current.value = "";
+  };
+
+  const handleSubmit = async () => {
+    if (!canPost || !user) return;
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      let image_url: string | null = null;
+
+      if (imageFile) {
+        image_url = await uploadPostImage(imageFile, user.id);
+      }
+
+      const { error: insertError } = await supabase.from("posts").insert({
+        author_id: user.id,
+        content: content.trim(),
+        image_url,
+      });
+
+      if (insertError) throw insertError;
+
+      // Reset
+      setContent("");
+      removeImage();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const initials =
+    profile?.display_name
+      ?.split(" ")
+      .map((w) => w[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2) ?? "ME";
 
   return (
     <div className="rounded-3xl border border-border/60 bg-card p-4 shadow-sm space-y-3">
       <div className="flex items-start gap-3">
-        <Avatar className="h-9 w-9 ring-2 ring-paw-pink/30 mt-0.5">
+        <Avatar className="h-9 w-9 ring-2 ring-paw-pink/30 mt-0.5 shrink-0">
+          <AvatarImage src={profile?.avatar_url ?? undefined} />
           <AvatarFallback className="bg-paw-pink-light text-paw-pink text-xs font-bold">
-            ME
+            {initials}
           </AvatarFallback>
         </Avatar>
+
         <textarea
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          placeholder="What's on your whiskers today? 🐾"
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          placeholder={
+            user
+              ? "What's on your whiskers today? 🐾"
+              : "Sign in to post something purrfect…"
+          }
+          disabled={!user || submitting}
           rows={3}
-          className="flex-1 resize-none bg-transparent text-sm text-foreground placeholder:text-muted-foreground/60 outline-none leading-relaxed"
+          className="flex-1 resize-none bg-transparent text-sm text-foreground placeholder:text-muted-foreground/60 outline-none leading-relaxed disabled:opacity-50"
         />
       </div>
 
+      {/* Image preview */}
+      <AnimatePresence>
+        {imagePreview && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="relative rounded-2xl overflow-hidden border border-border/50"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={imagePreview} alt="Preview" className="w-full max-h-60 object-cover" />
+            <button
+              onClick={removeImage}
+              className="absolute top-2 right-2 rounded-full bg-black/50 p-1 text-white hover:bg-black/70 transition-colors"
+              aria-label="Remove image"
+            >
+              <X size={14} weight="bold" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {error && (
+        <p className="text-xs text-destructive px-1">{error}</p>
+      )}
+
       <div className="flex items-center justify-between pt-1 border-t border-border/40">
-        <p className={`text-xs ${overLimit ? "text-destructive" : "text-muted-foreground"}`}>
-          {remaining} characters left
-        </p>
+        <div className="flex items-center gap-2">
+          {/* Image picker */}
+          <motion.button
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+            transition={{ type: "spring", stiffness: 600, damping: 20 }}
+            onClick={() => fileRef.current?.click()}
+            disabled={!user || submitting}
+            className="rounded-full p-1.5 text-muted-foreground hover:bg-secondary hover:text-paw-pink transition-colors disabled:opacity-40"
+            aria-label="Attach image"
+          >
+            <ImageIcon size={18} weight="duotone" />
+          </motion.button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleImagePick}
+          />
+
+          <span className={`text-xs ${overLimit ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
+            {remaining}
+          </span>
+        </div>
 
         <motion.button
-          whileTap={{ scale: 0.95 }}
-          whileHover={{ scale: 1.03 }}
-          transition={{ type: "spring", stiffness: 500, damping: 25 }}
-          disabled={value.trim().length === 0 || overLimit}
+          whileTap={{ scale: 0.92 }}
+          whileHover={{ scale: 1.04 }}
+          transition={{ type: "spring", stiffness: 600, damping: 20 }}
+          onClick={handleSubmit}
+          disabled={!canPost}
           className="flex items-center gap-1.5 rounded-full bg-paw-pink px-4 py-1.5 text-sm font-semibold text-white shadow-sm disabled:opacity-40 disabled:cursor-not-allowed hover:bg-paw-pink/90 transition-colors"
         >
-          <PawPrintIcon size={14} />
-          Post
+          {submitting ? (
+            <motion.span
+              animate={{ rotate: 360 }}
+              transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
+              className="block"
+            >
+              <PawPrintIcon size={14} />
+            </motion.span>
+          ) : (
+            <PawPrintIcon size={14} />
+          )}
+          {submitting ? "Posting…" : "Post"}
         </motion.button>
       </div>
     </div>

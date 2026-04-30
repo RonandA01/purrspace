@@ -1,8 +1,7 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   House,
@@ -14,27 +13,44 @@ import {
   PlusCircle,
   SignOut,
 } from "@phosphor-icons/react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { PawPrintIcon } from "./PawPrintIcon";
+import { NotificationBell } from "./NotificationBell";
+import { supabase } from "@/lib/supabase";
+import { useSession } from "@/hooks/useSession";
 
 const navItems = [
-  { label: "Home",       href: "/",          icon: House,          badge: undefined },
-  { label: "Explore",    href: "/explore",   icon: MagnifyingGlass, badge: undefined },
-  { label: "Purr-Mail",  href: "/messages",  icon: Envelope,       badge: 3 },
-  { label: "Whiskers",   href: "/alerts",    icon: Bell,           badge: 7 },
-  { label: "Saved",      href: "/saved",     icon: BookmarkSimple, badge: undefined },
-  { label: "Profile",    href: "/profile",   icon: User,           badge: undefined },
+  { label: "Home",      href: "/",         icon: House },
+  { label: "Explore",   href: "/explore",  icon: MagnifyingGlass },
+  { label: "Purr-Mail", href: "/messages", icon: Envelope },
+  { label: "Saved",     href: "/saved",    icon: BookmarkSimple },
+  { label: "Profile",   href: "/profile",  icon: User },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
-  const [composing, setComposing] = useState(false);
+  const router = useRouter();
+  const { user, profile, loading } = useSession();
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    router.push("/login");
+    router.refresh();
+  };
+
+  const initials =
+    profile?.display_name
+      ?.split(" ")
+      .map((w) => w[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2) ?? "??";
 
   return (
-    <aside className="flex h-full w-64 flex-col border-r border-border bg-sidebar px-4 py-6">
+    <aside className="flex h-screen w-64 flex-col border-r border-border bg-sidebar px-4 py-6 sticky top-0">
       {/* Logo */}
       <Link href="/" className="mb-8 flex items-center gap-2.5 px-2">
         <span className="text-paw-pink">
@@ -47,7 +63,7 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 space-y-1">
-        {navItems.map(({ label, href, icon: Icon, badge }) => {
+        {navItems.map(({ label, href, icon: Icon }) => {
           const active = pathname === href;
           return (
             <Link
@@ -74,25 +90,45 @@ export function Sidebar() {
                   className={active ? "text-paw-pink" : "text-current"}
                 />
                 <span>{label}</span>
-                {badge !== undefined && (
-                  <Badge className="ml-auto bg-paw-pink text-white text-[10px] px-1.5 py-0 min-w-[18px] h-[18px] flex items-center justify-center rounded-full">
-                    {badge}
-                  </Badge>
-                )}
               </span>
             </Link>
           );
         })}
+
+        {/* Whiskers (notifications) — inline so it can hold live count */}
+        <div
+          className={cn(
+            "relative flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition-colors",
+            pathname === "/alerts"
+              ? "bg-accent text-paw-pink"
+              : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+          )}
+        >
+          {pathname === "/alerts" && (
+            <motion.span
+              layoutId="sidebar-active"
+              className="absolute inset-0 rounded-2xl bg-accent"
+              transition={{ type: "spring", stiffness: 500, damping: 38 }}
+            />
+          )}
+          <span className="relative z-10 flex items-center gap-3 w-full">
+            <Bell size={20} weight="duotone" className={pathname === "/alerts" ? "text-paw-pink" : "text-current"} />
+            <span>Whiskers</span>
+            <span className="ml-auto">
+              {user && <NotificationBell userId={user.id} />}
+            </span>
+          </span>
+        </div>
       </nav>
 
       <Separator className="my-4 bg-border" />
 
       {/* Compose button */}
       <motion.button
-        whileTap={{ scale: 0.97 }}
-        whileHover={{ scale: 1.02 }}
-        transition={{ type: "spring", stiffness: 500, damping: 28 }}
-        onClick={() => setComposing(true)}
+        whileTap={{ scale: 0.95 }}
+        whileHover={{ scale: 1.03 }}
+        transition={{ type: "spring", stiffness: 600, damping: 22 }}
+        onClick={() => router.push("/")}
         className="mb-4 flex items-center justify-center gap-2 rounded-2xl bg-paw-pink px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-paw-pink/90 transition-colors"
       >
         <PlusCircle size={18} weight="bold" />
@@ -100,23 +136,49 @@ export function Sidebar() {
       </motion.button>
 
       {/* User footer */}
-      <div className="flex items-center gap-3 rounded-2xl px-2 py-2 hover:bg-secondary transition-colors cursor-pointer">
-        <Avatar className="h-9 w-9 ring-2 ring-paw-pink/30">
-          <AvatarFallback className="bg-paw-pink-light text-paw-pink text-xs font-bold">
-            ME
-          </AvatarFallback>
-        </Avatar>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold leading-tight truncate">You</p>
-          <p className="text-xs text-muted-foreground truncate">@catperson</p>
+      {loading ? (
+        <div className="flex items-center gap-3 rounded-2xl px-2 py-2">
+          <Skeleton className="h-9 w-9 rounded-full" />
+          <div className="flex-1 space-y-1.5">
+            <Skeleton className="h-3 w-24 rounded-full" />
+            <Skeleton className="h-2.5 w-16 rounded-full" />
+          </div>
         </div>
-        <button
-          className="text-muted-foreground hover:text-destructive transition-colors"
-          aria-label="Sign out"
+      ) : user && profile ? (
+        <div className="flex items-center gap-3 rounded-2xl px-2 py-2 hover:bg-secondary transition-colors">
+          <Avatar className="h-9 w-9 ring-2 ring-paw-pink/30">
+            <AvatarImage src={profile.avatar_url ?? undefined} />
+            <AvatarFallback className="bg-paw-pink-light text-paw-pink text-xs font-bold">
+              {initials}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold leading-tight truncate">
+              {profile.display_name}
+            </p>
+            <p className="text-xs text-muted-foreground truncate">
+              @{profile.username}
+            </p>
+          </div>
+          <motion.button
+            whileHover={{ scale: 1.15 }}
+            whileTap={{ scale: 0.88 }}
+            transition={{ type: "spring", stiffness: 600, damping: 20 }}
+            onClick={handleSignOut}
+            className="text-muted-foreground hover:text-destructive transition-colors"
+            aria-label="Sign out"
+          >
+            <SignOut size={16} weight="duotone" />
+          </motion.button>
+        </div>
+      ) : (
+        <Link
+          href="/login"
+          className="flex items-center justify-center gap-2 rounded-2xl border border-paw-pink/40 px-4 py-2 text-sm font-semibold text-paw-pink hover:bg-paw-pink/10 transition-colors"
         >
-          <SignOut size={16} weight="duotone" />
-        </button>
-      </div>
+          Sign in
+        </Link>
+      )}
     </aside>
   );
 }

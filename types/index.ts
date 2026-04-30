@@ -25,6 +25,24 @@ export interface Like {
   created_at: string;
 }
 
+export interface Follow {
+  id: string;
+  follower_id: string;
+  following_id: string;
+  created_at: string;
+}
+
+export interface Notification {
+  id: string;
+  user_id: string;
+  actor_id: string | null;
+  type: "like" | "follow" | "reply" | "mention";
+  post_id: string | null;
+  read: boolean;
+  created_at: string;
+  actor?: Profile;
+}
+
 export type NavItem = {
   label: string;
   href: string;
