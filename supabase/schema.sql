@@ -366,6 +366,7 @@ create policy "Users can update own profile"
 
 -- posts: private account posts only visible to followers + self
 drop policy if exists "Posts are public" on public.posts;
+drop policy if exists "Posts are visible based on privacy" on public.posts;
 create policy "Posts are visible based on privacy"
   on public.posts for select
   using (
@@ -410,31 +411,38 @@ create policy "Users can unreact"
   on public.likes for delete
   using (auth.uid() = user_id);
 
+drop policy if exists "Users can update own reaction" on public.likes;
 create policy "Users can update own reaction"
   on public.likes for update
   using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 -- comments
+drop policy if exists "Comments are public" on public.comments;
 create policy "Comments are public"
   on public.comments for select using (true);
 
+drop policy if exists "Authenticated users can comment" on public.comments;
 create policy "Authenticated users can comment"
   on public.comments for insert
   with check (auth.uid() = author_id);
 
+drop policy if exists "Authors can delete own comments" on public.comments;
 create policy "Authors can delete own comments"
   on public.comments for delete
   using (auth.uid() = author_id);
 
 -- pawmarks
+drop policy if exists "Users see own pawmarks" on public.pawmarks;
 create policy "Users see own pawmarks"
   on public.pawmarks for select
   using (auth.uid() = user_id);
 
+drop policy if exists "Users can pawmark" on public.pawmarks;
 create policy "Users can pawmark"
   on public.pawmarks for insert
   with check (auth.uid() = user_id);
 
+drop policy if exists "Users can remove pawmark" on public.pawmarks;
 create policy "Users can remove pawmark"
   on public.pawmarks for delete
   using (auth.uid() = user_id);
@@ -466,19 +474,23 @@ create policy "Users can mark own notifications read"
   using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 -- conversations
+drop policy if exists "Participants can see conversations" on public.conversations;
 create policy "Participants can see conversations"
   on public.conversations for select
   using (auth.uid() = participant_1 or auth.uid() = participant_2);
 
+drop policy if exists "Users can create conversations" on public.conversations;
 create policy "Users can create conversations"
   on public.conversations for insert
   with check (auth.uid() = participant_1 or auth.uid() = participant_2);
 
+drop policy if exists "Participants can update conversations" on public.conversations;
 create policy "Participants can update conversations"
   on public.conversations for update
   using (auth.uid() = participant_1 or auth.uid() = participant_2);
 
 -- direct_messages
+drop policy if exists "Participants can see messages" on public.direct_messages;
 create policy "Participants can see messages"
   on public.direct_messages for select
   using (
@@ -489,6 +501,7 @@ create policy "Participants can see messages"
     )
   );
 
+drop policy if exists "Participants can send messages" on public.direct_messages;
 create policy "Participants can send messages"
   on public.direct_messages for insert
   with check (
@@ -500,6 +513,7 @@ create policy "Participants can send messages"
     )
   );
 
+drop policy if exists "Sender can delete own messages" on public.direct_messages;
 create policy "Sender can delete own messages"
   on public.direct_messages for delete
   using (auth.uid() = sender_id);
@@ -534,14 +548,17 @@ create policy "Users can delete own uploads"
   on storage.objects for delete
   using (bucket_id = 'post-media' and auth.uid()::text = (storage.foldername(name))[1]);
 
+drop policy if exists "Public read on avatars" on storage.objects;
 create policy "Public read on avatars"
   on storage.objects for select
   using (bucket_id = 'avatars');
 
+drop policy if exists "Auth users can upload avatars" on storage.objects;
 create policy "Auth users can upload avatars"
   on storage.objects for insert
   with check (bucket_id = 'avatars' and auth.role() = 'authenticated');
 
+drop policy if exists "Users can update own avatars" on storage.objects;
 create policy "Users can update own avatars"
   on storage.objects for update
   using (bucket_id = 'avatars' and auth.uid()::text = (storage.foldername(name))[1]);
