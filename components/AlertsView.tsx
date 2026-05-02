@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Bell } from "@phosphor-icons/react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { supabase } from "@/lib/supabase";
@@ -46,8 +47,17 @@ function initials(name?: string | null) {
   return name?.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2) ?? "??";
 }
 
+function notificationHref(n: import("@/types").Notification): string {
+  if (n.type === "follow") return `/profile/${n.actor?.username ?? ""}`;
+  if ((n.type === "comment" || n.type === "reply") && n.post_id && n.comment_id)
+    return `/post/${n.post_id}?comment=${n.comment_id}`;
+  if (n.post_id) return `/post/${n.post_id}`;
+  return "#";
+}
+
 export function AlertsView() {
   const { user, loading: sessionLoading } = useSession();
+  const router = useRouter();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -177,12 +187,16 @@ export function AlertsView() {
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, scale: 0.95 }}
                 transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                onClick={() => !n.read && markRead(n.id)}
+                onClick={() => {
+                  if (!n.read) markRead(n.id);
+                  const href = notificationHref(n);
+                  if (href !== "#") router.push(href);
+                }}
                 className={cn(
-                  "flex items-start gap-3 rounded-2xl border px-4 py-3 transition-colors cursor-default",
+                  "flex items-start gap-3 rounded-2xl border px-4 py-3 transition-colors cursor-pointer",
                   n.read
-                    ? "border-border/40 bg-card"
-                    : "border-paw-pink/30 bg-paw-pink/5 cursor-pointer hover:bg-paw-pink/8"
+                    ? "border-border/40 bg-card hover:bg-secondary/50"
+                    : "border-paw-pink/30 bg-paw-pink/5 hover:bg-paw-pink/10"
                 )}
               >
                 <div className="relative shrink-0">

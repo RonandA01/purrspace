@@ -44,6 +44,14 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // ── Alt+Tab debug ─────────────────────────────────────────
+  useEffect(() => {
+    const handler = () =>
+      console.log("[SESSION] visibilityState:", document.visibilityState);
+    document.addEventListener("visibilitychange", handler);
+    return () => document.removeEventListener("visibilitychange", handler);
+  }, []);
+
   useEffect(() => {
     // Load initial session once
     supabase.auth.getSession().then(async ({ data: { session: s } }) => {
@@ -56,6 +64,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     // Listen for auth state changes (sign-in, sign-out, etc.)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, s) => {
+        console.log("[SESSION] onAuthStateChange:", event);
         // TOKEN_REFRESHED fires on tab focus — just swap the token, don't
         // clear user/profile or show any loading state.
         if (event === "TOKEN_REFRESHED") {

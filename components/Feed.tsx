@@ -178,6 +178,24 @@ export function Feed() {
     };
   }, []);
 
+  // ── Alt+Tab: refetch on tab visibility ─────────────────────
+  useEffect(() => {
+    const handleVisible = async () => {
+      console.log("[FEED] visibilityState:", document.visibilityState);
+      if (document.visibilityState !== "visible") return;
+      console.log("[FEED] Tab became visible — refetching feed");
+      console.log("[FEED] Fetch started");
+      const { data: { user } } = await supabase.auth.getUser();
+      userIdRef.current = user?.id;
+      const fresh = await fetchPosts(user?.id, null);
+      console.log("[FEED] Fetch completed:", fresh.length, "posts");
+      setPosts(fresh);
+      setHasMore(fresh.length === PAGE_SIZE);
+    };
+    document.addEventListener("visibilitychange", handleVisible);
+    return () => document.removeEventListener("visibilitychange", handleVisible);
+  }, []);
+
   // ── Infinite scroll sentinel ────────────────────────────────
   const loadMore = useCallback(async () => {
     if (loadingMore || !hasMore || posts.length === 0) return;

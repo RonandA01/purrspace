@@ -9,7 +9,9 @@ import {
   LockOpen,
   X,
   Check,
+  ChatTeardropText,
 } from "@phosphor-icons/react";
+import { useRouter } from "next/navigation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CatPost } from "./CatPost";
@@ -37,6 +39,7 @@ function initials(name?: string | null) {
 
 export function ProfileView({ username }: ProfileViewProps) {
   const { user, profile: myProfile, loading: sessionLoading, refreshProfile } = useSession();
+  const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
@@ -357,17 +360,28 @@ export function ProfileView({ username }: ProfileViewProps) {
               <PencilSimple size={14} /> Edit profile
             </motion.button>
           ) : user ? (
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              onClick={toggleFollow}
-              className={
-                isFollowing
-                  ? "rounded-full border border-border px-4 py-1.5 text-sm font-semibold hover:bg-secondary transition-colors"
-                  : "rounded-full bg-paw-pink px-4 py-1.5 text-sm font-semibold text-white hover:bg-paw-pink/90 transition-colors"
-              }
-            >
-              {isFollowing ? "Following" : "Follow"}
-            </motion.button>
+            <>
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                onClick={() => router.push(`/messages?user_id=${profile.id}`)}
+                className="flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-sm font-semibold hover:bg-secondary transition-colors"
+                aria-label="Message"
+              >
+                <ChatTeardropText size={14} />
+                Message
+              </motion.button>
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                onClick={toggleFollow}
+                className={
+                  isFollowing
+                    ? "rounded-full border border-border px-4 py-1.5 text-sm font-semibold hover:bg-secondary transition-colors"
+                    : "rounded-full bg-paw-pink px-4 py-1.5 text-sm font-semibold text-white hover:bg-paw-pink/90 transition-colors"
+                }
+              >
+                {isFollowing ? "Following" : "Follow"}
+              </motion.button>
+            </>
           ) : null}
         </div>
       </div>

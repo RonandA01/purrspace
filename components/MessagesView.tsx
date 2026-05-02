@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MagnifyingGlass, PaperPlaneTilt, Plus, Envelope } from "@phosphor-icons/react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useSession } from "@/hooks/useSession";
 import type { Conversation, DirectMessage, Profile } from "@/types";
@@ -28,6 +29,9 @@ function timeAgo(dateStr: string) {
 
 export function MessagesView() {
   const { user, profile } = useSession();
+  const searchParams = useSearchParams();
+  const autoUserId = searchParams.get("user_id");
+  const autoStartedRef = useRef(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConv, setActiveConv] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<DirectMessage[]>([]);
@@ -96,6 +100,25 @@ export function MessagesView() {
     loadConvs();
     return () => { mounted = false; };
   }, [user]);
+
+  // Auto-open conversation from ?user_id= URL param (e.g. from Profile "Message" button)
+  useEffect(() => {
+    if (!user || !autoUserId || autoStartedRef.current) return;
+    autoStartedRef.current = true;
+
+    const autoOpen = async () => {
+      const { data: otherProfile } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", autoUserId)
+        .single();
+      if (otherProfile) {
+        await startConversation(otherProfile as Profile);
+      }
+    };
+    autoOpen();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, autoUserId]);
 
   // Load messages for active conversation
   useEffect(() => {

@@ -34,16 +34,37 @@ interface CommentItemProps {
   comment: Comment;
   depth?: number;
   onReply: (parentId: string, mentionName: string) => void;
+  highlightCommentId?: string;
 }
 
-function CommentItem({ comment, depth = 0, onReply }: CommentItemProps) {
+function CommentItem({ comment, depth = 0, onReply, highlightCommentId }: CommentItemProps) {
+  const isTarget = comment.id === highlightCommentId;
+  const itemRef = useRef<HTMLDivElement>(null);
+  const [highlighted, setHighlighted] = useState(isTarget);
+
+  useEffect(() => {
+    if (!isTarget) return;
+    // Scroll into view after layout settles
+    const scrollTimer = setTimeout(() => {
+      itemRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 400);
+    // Remove highlight after 2.5 s
+    const fadeTimer = setTimeout(() => setHighlighted(false), 2500);
+    return () => { clearTimeout(scrollTimer); clearTimeout(fadeTimer); };
+  }, [isTarget]);
+
   return (
     <motion.div
+      ref={itemRef}
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
       transition={{ type: "spring", stiffness: 400, damping: 30 }}
-      className={cn("flex gap-2.5", depth > 0 && "ml-8 pl-3 border-l-2 border-border/40")}
+      className={cn(
+        "flex gap-2.5 rounded-xl transition-colors duration-700",
+        depth > 0 && "ml-8 pl-3 border-l-2 border-border/40",
+        highlighted && "bg-paw-pink/15"
+      )}
     >
       <Avatar className="h-7 w-7 shrink-0 mt-0.5">
         <AvatarImage src={comment.author?.avatar_url ?? undefined} />
@@ -86,7 +107,7 @@ function CommentItem({ comment, depth = 0, onReply }: CommentItemProps) {
         {comment.replies && comment.replies.length > 0 && (
           <div className="mt-2 space-y-2">
             {comment.replies.map((reply) => (
-              <CommentItem key={reply.id} comment={reply} depth={1} onReply={onReply} />
+              <CommentItem key={reply.id} comment={reply} depth={1} onReply={onReply} highlightCommentId={highlightCommentId} />
             ))}
           </div>
         )}
@@ -99,9 +120,10 @@ interface CommentsSectionProps {
   postId: string;
   commentCount: number;
   onCountChange?: (delta: number) => void;
+  highlightCommentId?: string;
 }
 
-export function CommentsSection({ postId, commentCount, onCountChange }: CommentsSectionProps) {
+export function CommentsSection({ postId, commentCount, onCountChange, highlightCommentId }: CommentsSectionProps) {
   const { user, profile } = useSession();
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(false);
@@ -271,7 +293,7 @@ export function CommentsSection({ postId, commentCount, onCountChange }: Comment
         <AnimatePresence>
           <div className="space-y-3">
             {comments.map((c) => (
-              <CommentItem key={c.id} comment={c} onReply={handleReply} />
+              <CommentItem key={c.id} comment={c} onReply={handleReply} highlightCommentId={highlightCommentId} />
             ))}
           </div>
         </AnimatePresence>

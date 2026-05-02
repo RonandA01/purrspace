@@ -108,6 +108,12 @@ create table if not exists public.conversations (
   check (participant_1 < participant_2)
 );
 
+-- Add unique constraint for upsert onConflict to work (idempotent)
+alter table public.conversations
+  drop constraint if exists conversations_participants_unique;
+alter table public.conversations
+  add constraint conversations_participants_unique unique (participant_1, participant_2);
+
 create table if not exists public.direct_messages (
   id              uuid primary key default uuid_generate_v4(),
   conversation_id uuid not null references public.conversations(id) on delete cascade,

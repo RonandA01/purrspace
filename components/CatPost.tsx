@@ -16,6 +16,8 @@ import { cn } from "@/lib/utils";
 interface CatPostProps {
   post: Post;
   className?: string;
+  alwaysShowComments?: boolean;
+  highlightCommentId?: string;
 }
 
 function formatRelativeTime(dateStr: string): string {
@@ -39,13 +41,13 @@ function initials(name?: string | null) {
   );
 }
 
-export function CatPost({ post, className }: CatPostProps) {
+export function CatPost({ post, className, alwaysShowComments = false, highlightCommentId }: CatPostProps) {
   const [likeCount, setLikeCount] = useState(post.like_count ?? 0);
   const [myReaction, setMyReaction] = useState<string | null>(post.my_reaction ?? null);
   const [commentCount, setCommentCount] = useState(post.comment_count ?? 0);
   const [shareCount, setShareCount] = useState(post.share_count ?? 0);
   const [pawmarked, setPawmarked] = useState(post.pawmarked_by_me ?? false);
-  const [showComments, setShowComments] = useState(false);
+  const [showComments, setShowComments] = useState(alwaysShowComments);
 
   const handleReactionChange = (emoji: string | null, delta: number) => {
     setMyReaction(emoji);
@@ -202,6 +204,7 @@ export function CatPost({ post, className }: CatPostProps) {
                   postId={post.id}
                   commentCount={commentCount}
                   onCountChange={(delta) => setCommentCount((c) => Math.max(0, c + delta))}
+                  highlightCommentId={highlightCommentId}
                 />
               </motion.div>
             )}
