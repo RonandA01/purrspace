@@ -402,11 +402,13 @@ create policy "Likes are public"
   on public.likes for select using (true);
 
 drop policy if exists "Users can like" on public.likes;
+drop policy if exists "Users can react" on public.likes;
 create policy "Users can react"
   on public.likes for insert
   with check (auth.uid() = user_id);
 
 drop policy if exists "Users can unlike" on public.likes;
+drop policy if exists "Users can unreact" on public.likes;
 create policy "Users can unreact"
   on public.likes for delete
   using (auth.uid() = user_id);
