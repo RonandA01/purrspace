@@ -53,9 +53,18 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     });
 
-    // Listen for auth state changes (sign-in, sign-out, token refresh)
+    // Listen for auth state changes (sign-in, sign-out, etc.)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, s) => {
+      async (event, s) => {
+        // TOKEN_REFRESHED fires on tab focus — just swap the token, don't
+        // clear user/profile or show any loading state.
+        if (event === "TOKEN_REFRESHED") {
+          setSession(s);
+          return;
+        }
+        // INITIAL_SESSION is already handled by getSession() above.
+        if (event === "INITIAL_SESSION") return;
+
         setSession(s);
         setUser(s?.user ?? null);
         setProfile(s ? await fetchProfile(s.user.id) : null);

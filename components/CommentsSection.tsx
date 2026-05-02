@@ -219,14 +219,31 @@ export function CommentsSection({ postId, commentCount, onCountChange }: Comment
     setReplyTo(null);
 
     try {
-      const { error } = await supabase
+      const { data: inserted, error } = await supabase
         .from("comments")
         .insert({ post_id: postId, author_id: user.id, parent_id: parentId, content })
-        .then((r) => r);
+        .select("*, author:profiles(*)")
+        .single();
 
       if (error) throw error;
+
+      // Replace the temp-ID optimistic entry with the real DB row so
+      // the Realtime event (which carries the real UUID) sees it already
+      // in state and deduplicates correctly.
+      const real: Comment = { ...(inserted as Comment), replies: [] };
+      if (parentId) {
+        setComments((prev) =>
+          prev.map((c) =>
+            c.id === parentId
+              ? { ...c, replies: (c.replies ?? []).map((r) => r.id === optimistic.id ? real : r) }
+              : c
+          )
+        );
+      } else {
+        setComments((prev) => prev.map((c) => c.id === optimistic.id ? real : c));
+      }
     } catch {
-      // Revert optimistic entry
+      // Revert optimistic entry on failure
       if (parentId) {
         setComments((prev) =>
           prev.map((c) =>

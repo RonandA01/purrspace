@@ -61,7 +61,7 @@ export function AlertsView() {
     const load = async () => {
       const { data } = await supabase
         .from("notifications")
-        .select("*, actor:profiles(*)")
+        .select("*, actor:profiles!actor_id(*)")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
         .limit(50);
@@ -81,7 +81,7 @@ export function AlertsView() {
           if (!mounted) return;
           const { data } = await supabase
             .from("notifications")
-            .select("*, actor:profiles(*)")
+            .select("*, actor:profiles!actor_id(*)")
             .eq("id", payload.new.id)
             .single();
           if (data && mounted)

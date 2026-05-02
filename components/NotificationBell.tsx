@@ -42,7 +42,7 @@ export function NotificationBell({ userId }: { userId: string }) {
     const load = async () => {
       const { data } = await supabase
         .from("notifications")
-        .select("*, actor:profiles(*)")
+        .select("*, actor:profiles!actor_id(*)")
         .eq("user_id", userId)
         .order("created_at", { ascending: false })
         .limit(20);
@@ -71,7 +71,7 @@ export function NotificationBell({ userId }: { userId: string }) {
           if (!mounted) return;
           const { data } = await supabase
             .from("notifications")
-            .select("*, actor:profiles(*)")
+            .select("*, actor:profiles!actor_id(*)")
             .eq("id", payload.new.id)
             .single();
           if (data && mounted)
