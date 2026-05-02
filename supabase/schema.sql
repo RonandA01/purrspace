@@ -532,6 +532,25 @@ create policy "Sender can delete own messages"
   on public.direct_messages for delete
   using (auth.uid() = sender_id);
 
+-- Participants can update read/status/seen_at (e.g. recipient marking seen)
+drop policy if exists "Participants can update message status" on public.direct_messages;
+create policy "Participants can update message status"
+  on public.direct_messages for update
+  using (
+    exists (
+      select 1 from public.conversations
+      where id = direct_messages.conversation_id
+        and (auth.uid() = participant_1 or auth.uid() = participant_2)
+    )
+  )
+  with check (
+    exists (
+      select 1 from public.conversations
+      where id = direct_messages.conversation_id
+        and (auth.uid() = participant_1 or auth.uid() = participant_2)
+    )
+  );
+
 -- ── 19. STORAGE BUCKETS ──────────────────────────────────────
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values (
