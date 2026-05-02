@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { MagnifyingGlass, PaperPlaneTilt, Plus, Envelope } from "@phosphor-icons/react";
+import { MagnifyingGlass, PaperPlaneTilt, Plus, Envelope, ArrowLeft } from "@phosphor-icons/react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -283,8 +283,13 @@ export function MessagesView() {
 
   return (
     <div className="flex flex-1 h-screen overflow-hidden">
-      {/* Conversation list */}
-      <div className="w-72 border-r border-border flex flex-col shrink-0">
+      {/* Conversation list — full-width on mobile, fixed sidebar on desktop.
+          Hidden on mobile when a conversation is open. */}
+      <div className={cn(
+        "border-r border-border flex-col shrink-0",
+        "w-full md:w-72",
+        activeConv ? "hidden md:flex" : "flex"
+      )}>
         <div className="flex items-center justify-between px-4 py-4 border-b border-border/50">
           <h2 className="font-bold text-base">Purr-Mail ✉️</h2>
           <motion.button
@@ -396,12 +401,23 @@ export function MessagesView() {
         </div>
       </div>
 
-      {/* Message thread */}
-      <div className="flex flex-1 flex-col overflow-hidden">
+      {/* Message thread — hidden on mobile until a conversation is selected */}
+      <div className={cn(
+        "flex-col overflow-hidden flex-1",
+        activeConv ? "flex" : "hidden md:flex"
+      )}>
         {activeConv ? (
           <>
             {/* Header */}
             <div className="flex items-center gap-3 border-b border-border/50 px-5 py-3 shrink-0">
+              {/* Back button — mobile only */}
+              <button
+                onClick={() => setActiveConv(null)}
+                className="md:hidden flex h-8 w-8 items-center justify-center rounded-full hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground shrink-0"
+                aria-label="Back to conversations"
+              >
+                <ArrowLeft size={18} />
+              </button>
               <Avatar className="h-8 w-8 ring-2 ring-paw-pink/20">
                 <AvatarImage src={activeConv.other_user?.avatar_url ?? undefined} />
                 <AvatarFallback className="bg-paw-pink-light text-paw-pink text-xs font-bold">
