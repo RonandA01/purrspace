@@ -137,18 +137,18 @@ export function MessagesView() {
       setMessages((data as DirectMessage[]) ?? []);
       setMsgLoading(false);
 
-      // Mark received messages as read
+      // Mark received messages as seen (read + status update)
       supabase
         .from("direct_messages")
-        .update({ read: true })
+        .update({ read: true, status: "seen", seen_at: new Date().toISOString() })
         .eq("conversation_id", activeConv.id)
         .neq("sender_id", user.id)
-        .eq("read", false)
+        .neq("status", "seen")
         .then(() => {});
     };
     load();
 
-    // Realtime for this conversation
+    // Realtime for this conversation — INSERT + UPDATE (for status changes)
     if (channelRef.current) supabase.removeChannel(channelRef.current);
     const channel = supabase
       .channel(`dm:${activeConv.id}`)
@@ -169,14 +169,39 @@ export function MessagesView() {
             .single();
           if (data && mounted) {
             setMessages((prev) => {
+              // Deduplicate: real ID already in state from sendMessage's .select()
               if (prev.some((m) => m.id === data.id)) return prev;
               return [...prev, data as DirectMessage];
             });
-            // Auto-read if from other user
             if (data.sender_id !== user.id) {
-              supabase.from("direct_messages").update({ read: true }).eq("id", data.id).then(() => {});
+              // Recipient is in this conversation → mark seen immediately
+              supabase
+                .from("direct_messages")
+                .update({ read: true, status: "seen", seen_at: new Date().toISOString() })
+                .eq("id", data.id)
+                .then(() => {});
             }
           }
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "direct_messages",
+          filter: `conversation_id=eq.${activeConv.id}`,
+        },
+        (payload) => {
+          if (!mounted) return;
+          // Update status/seen_at so the sender sees delivery ticks in real-time
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === payload.new.id
+                ? { ...m, status: payload.new.status as DirectMessage["status"], seen_at: payload.new.seen_at, read: payload.new.read }
+                : m
+            )
+          );
         }
       )
       .subscribe();
@@ -246,24 +271,33 @@ export function MessagesView() {
     const content = msgText.trim();
     setMsgText("");
 
-    // Optimistic
+    // Optimistic insert with temp ID
     const opt: DirectMessage = {
       id: `opt-${Date.now()}`,
       conversation_id: activeConv.id,
       sender_id: user.id,
       content,
       read: false,
+      status: "sent",
+      seen_at: null,
       created_at: new Date().toISOString(),
       sender: profile ?? undefined,
     };
     setMessages((prev) => [...prev, opt]);
 
     try {
-      const { error } = await supabase
+      // Fetch the real row back so we can swap the temp ID → real UUID.
+      // This means the Realtime INSERT event will find the real ID already
+      // in state and deduplicate correctly — no double render.
+      const { data: inserted, error } = await supabase
         .from("direct_messages")
         .insert({ conversation_id: activeConv.id, sender_id: user.id, content })
-        .then((r) => r);
+        .select("*, sender:profiles(*)")
+        .single();
       if (error) throw error;
+      setMessages((prev) =>
+        prev.map((m) => (m.id === opt.id ? (inserted as DirectMessage) : m))
+      );
     } catch {
       setMessages((prev) => prev.filter((m) => m.id !== opt.id));
       toast.error("Failed to send message");
@@ -282,7 +316,7 @@ export function MessagesView() {
   }
 
   return (
-    <div className="flex flex-1 h-screen overflow-hidden">
+    <div className="flex flex-1 h-full overflow-hidden">
       {/* Conversation list — full-width on mobile, fixed sidebar on desktop.
           Hidden on mobile when a conversation is open. */}
       <div className={cn(
@@ -472,9 +506,23 @@ export function MessagesView() {
                           >
                             {msg.content}
                           </div>
-                          <span className="text-[10px] text-muted-foreground px-1">
-                            {timeAgo(msg.created_at)}
-                          </span>
+                          <div className={cn("flex items-center gap-1 px-1", isMe && "justify-end")}>
+                            <span className="text-[10px] text-muted-foreground">
+                              {timeAgo(msg.created_at)}
+                            </span>
+                            {isMe && (
+                              <span className={cn(
+                                "text-[10px] font-bold leading-none",
+                                msg.status === "seen"
+                                  ? "text-paw-pink"
+                                  : "text-muted-foreground/60"
+                              )}>
+                                {msg.status === "sent"      && "✓"}
+                                {msg.status === "delivered" && "✓✓"}
+                                {msg.status === "seen"      && "✓✓"}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </motion.div>
                     );

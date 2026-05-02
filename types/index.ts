@@ -93,6 +93,8 @@ export interface DirectMessage {
   sender_id: string;
   content: string;
   read: boolean;
+  status: "sent" | "delivered" | "seen";
+  seen_at: string | null;
   created_at: string;
   sender?: Profile;
 }

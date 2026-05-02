@@ -120,8 +120,14 @@ create table if not exists public.direct_messages (
   sender_id       uuid not null references public.profiles(id) on delete cascade,
   content         text not null check (char_length(content) <= 1000),
   read            boolean not null default false,
+  status          text not null default 'sent' check (status in ('sent', 'delivered', 'seen')),
+  seen_at         timestamptz,
   created_at      timestamptz not null default now()
 );
+
+-- Idempotent migrations for existing deployments
+alter table public.direct_messages add column if not exists status  text not null default 'sent' check (status in ('sent', 'delivered', 'seen'));
+alter table public.direct_messages add column if not exists seen_at timestamptz;
 
 -- ── 8. NOTIFICATIONS ────────────────────────────────────────
 create table if not exists public.notifications (
