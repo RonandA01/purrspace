@@ -68,8 +68,11 @@ export function CatPost({ post, className }: CatPostProps) {
         {isRepost && post.shared_from && (
           <div className="flex items-center gap-1.5 px-5 pt-3 text-[11px] text-muted-foreground">
             <ArrowsCounterClockwise size={11} weight="bold" />
-            <span className="font-medium">
-              {displayAuthor?.display_name ?? "Someone"} shared
+            <span>
+              <span className="font-semibold text-foreground/80">{displayAuthor?.display_name ?? "Someone"}</span>
+              {" shared "}
+              <span className="font-semibold text-foreground/80">{post.shared_from.author?.display_name ?? "someone"}</span>
+              {"'s post"}
             </span>
           </div>
         )}

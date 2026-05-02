@@ -36,7 +36,7 @@ function initials(name?: string | null) {
 }
 
 export function ProfileView({ username }: ProfileViewProps) {
-  const { user, profile: myProfile } = useSession();
+  const { user, profile: myProfile, loading: sessionLoading, refreshProfile } = useSession();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,6 +58,7 @@ export function ProfileView({ username }: ProfileViewProps) {
 
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
+  const mouseDownOnBackdrop = useRef(false);
 
   // Only true when the loaded profile actually belongs to the signed-in user
   const isOwnProfile = Boolean(user && profile && profile.id === user.id);
@@ -201,6 +202,7 @@ export function ProfileView({ username }: ProfileViewProps) {
         toast.error("Failed to save: " + (error.message ?? "Unknown error"));
       } else {
         setProfile((p) => (p ? { ...p, ...updates } : p));
+        await refreshProfile(); // keep Sidebar / ComposeBox in sync
         toast("Profile updated! 🐾");
         setIsEditing(false);
       }
@@ -267,7 +269,7 @@ export function ProfileView({ username }: ProfileViewProps) {
     }
   };
 
-  if (loading) {
+  if (loading || (!username && sessionLoading)) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-32 w-full rounded-3xl" />
@@ -435,7 +437,11 @@ export function ProfileView({ username }: ProfileViewProps) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-            onClick={(e) => { if (e.target === e.currentTarget) setIsEditing(false); }}
+            onMouseDown={(e) => { mouseDownOnBackdrop.current = e.target === e.currentTarget; }}
+            onMouseUp={(e) => {
+              if (e.target === e.currentTarget && mouseDownOnBackdrop.current) setIsEditing(false);
+              mouseDownOnBackdrop.current = false;
+            }}
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}

@@ -50,7 +50,7 @@ export function Sidebar() {
       .slice(0, 2) ?? "??";
 
   return (
-    <aside className="flex h-screen w-64 flex-col border-r border-border bg-sidebar px-4 py-6 sticky top-0">
+    <aside className="hidden md:flex h-screen w-64 flex-col border-r border-border bg-sidebar px-4 py-6 sticky top-0">
       {/* Logo */}
       <Link href="/" className="mb-8 flex items-center gap-2.5 px-2">
         <span className="text-paw-pink"><PawPrintIcon size={28} /></span>
@@ -127,7 +127,7 @@ export function Sidebar() {
         whileTap={{ scale: 0.95 }}
         whileHover={{ scale: 1.03 }}
         transition={{ type: "spring", stiffness: 600, damping: 22 }}
-        onClick={() => router.push("/")}
+        onClick={() => window.dispatchEvent(new CustomEvent("purrspace:open-compose"))}
         className="mb-4 flex items-center justify-center gap-2 rounded-2xl bg-paw-pink px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-paw-pink/90 transition-colors"
       >
         <PlusCircle size={18} weight="bold" />

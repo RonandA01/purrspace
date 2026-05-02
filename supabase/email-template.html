@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PurrSpace</title>
+  <!--[if mso]>
+  <noscript>
+    <xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml>
+  </noscript>
+  <![endif]-->
+  <style>
+    /* Reset */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f8f4f2; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+    a { color: inherit; text-decoration: none; }
+
+    .wrapper   { background: #f8f4f2; padding: 40px 16px; }
+    .card      { background: #ffffff; border-radius: 24px; max-width: 520px; margin: 0 auto; overflow: hidden; box-shadow: 0 2px 16px rgba(0,0,0,0.07); }
+
+    /* Header */
+    .header    { background: linear-gradient(135deg, #ffe4ec 0%, #fff5f8 100%); padding: 32px 40px 24px; text-align: center; }
+    .logo-wrap { display: inline-flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+    .logo-icon { width: 44px; height: 44px; background: #ffa0b8; border-radius: 14px; display: inline-flex; align-items: center; justify-content: center; }
+    .logo-icon svg { width: 26px; height: 26px; fill: #fff; }
+    .logo-text { font-size: 22px; font-weight: 800; color: #1a1a1a; letter-spacing: -0.5px; }
+    .logo-text span { color: #ff6b98; }
+    .tagline   { font-size: 13px; color: #b07080; margin-top: 2px; }
+
+    /* Body */
+    .body      { padding: 36px 40px; }
+    .greeting  { font-size: 20px; font-weight: 700; color: #1a1a1a; margin-bottom: 12px; }
+    .message   { font-size: 14px; color: #555; line-height: 1.7; margin-bottom: 28px; }
+
+    /* CTA button */
+    .btn-wrap  { text-align: center; margin-bottom: 28px; }
+    .btn       { display: inline-block; background: #ff6b98; color: #fff !important; font-size: 15px; font-weight: 700; padding: 14px 36px; border-radius: 999px; letter-spacing: 0.2px; }
+    .btn:hover { background: #e05580; }
+
+    /* Divider */
+    .divider   { border: none; border-top: 1px solid #f0e8ec; margin: 0 0 20px; }
+
+    /* Link fallback */
+    .link-note { font-size: 12px; color: #999; line-height: 1.6; word-break: break-all; }
+    .link-note a { color: #ff6b98; }
+
+    /* Footer */
+    .footer    { background: #fdf0f4; padding: 20px 40px; text-align: center; }
+    .footer p  { font-size: 11px; color: #c0a0aa; line-height: 1.6; }
+    .footer a  { color: #ff6b98; }
+
+    /* Paw decorations */
+    .paw-row   { text-align: center; font-size: 18px; letter-spacing: 4px; margin-bottom: 16px; opacity: 0.5; }
+
+    @media (max-width: 560px) {
+      .body, .header, .footer { padding-left: 24px; padding-right: 24px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="card">
+
+      <!-- Header / Brand -->
+      <div class="header">
+        <div class="logo-wrap">
+          <div class="logo-icon">
+            <!-- Paw print SVG -->
+            <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+              <ellipse cx="10" cy="8"  rx="3.2" ry="4.2" />
+              <ellipse cx="22" cy="8"  rx="3.2" ry="4.2" />
+              <ellipse cx="5"  cy="16" rx="2.8" ry="3.8" />
+              <ellipse cx="27" cy="16" rx="2.8" ry="3.8" />
+              <ellipse cx="16" cy="22" rx="7"   ry="8"   />
+            </svg>
+          </div>
+          <div class="logo-text">Purr<span>Space</span></div>
+        </div>
+        <div class="tagline">Your cozy corner of the internet 🐱</div>
+      </div>
+
+      <!-- Body -->
+      <div class="body">
+        <div class="paw-row">🐾 🐾 🐾</div>
+
+        <div class="greeting">{{ .SiteURL ? 'Hey there, furball! 👋' : 'Hey there, furball! 👋' }}</div>
+
+        <div class="message">
+          <!-- Supabase injects the right message based on email type -->
+          {{ .ConfirmationURL
+            ? 'Thanks for joining PurrSpace! Click the button below to confirm your email address and start purring.'
+            : 'We received a request to reset your PurrSpace password. Click the button below to choose a new one. This link expires in 24 hours.' }}
+        </div>
+
+        <div class="btn-wrap">
+          <a href="{{ .ConfirmationURL }}" class="btn">
+            {{ .ConfirmationURL ? '✉️ Confirm my email' : '🔑 Reset my password' }}
+          </a>
+        </div>
+
+        <hr class="divider" />
+
+        <p class="link-note">
+          Button not working? Copy and paste this link into your browser:<br/>
+          <a href="{{ .ConfirmationURL }}">{{ .ConfirmationURL }}</a>
+        </p>
+      </div>
+
+      <!-- Footer -->
+      <div class="footer">
+        <p>
+          You're receiving this because an account was created or a reset was requested for
+          <strong>{{ .Email }}</strong> on PurrSpace.<br/>
+          If this wasn't you, you can safely ignore this email — no action is required.<br/><br/>
+          PurrSpace &nbsp;·&nbsp;
+          <a href="{{ .SiteURL }}/terms">Privacy &amp; Terms</a>
+          &nbsp;·&nbsp;Philippines Data Privacy Act of 2012 (R.A. 10173)
+        </p>
+      </div>
+
+    </div>
+  </div>
+</body>
+</html>

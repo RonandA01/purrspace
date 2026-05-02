@@ -27,6 +27,8 @@ alter table public.profiles add column if not exists age          integer;
 alter table public.profiles add column if not exists pet_names    text[];
 alter table public.profiles add column if not exists pet_types    text[];
 alter table public.profiles add column if not exists is_private   boolean not null default false;
+alter table public.profiles add column if not exists birthday     date;
+alter table public.profiles add column if not exists gender       text;
 
 -- ── 2. POSTS ────────────────────────────────────────────────
 create table if not exists public.posts (
@@ -46,17 +48,25 @@ alter table public.posts add column if not exists share_count    integer not nul
 alter table public.posts add column if not exists shared_from_id uuid references public.posts(id) on delete set null;
 
 -- ── 3. LIKES (Reactions) ────────────────────────────────────
--- reaction_emoji stores which cat emoji was used (default paw = like)
+-- reaction_emoji stores reaction value: like | haha | love | wow | sad | angry
 create table if not exists public.likes (
   id             uuid primary key default uuid_generate_v4(),
   post_id        uuid not null references public.posts(id) on delete cascade,
   user_id        uuid not null references public.profiles(id) on delete cascade,
-  reaction_emoji text not null default '🐾',
+  reaction_emoji text not null default 'like',
   created_at     timestamptz not null default now(),
   unique (post_id, user_id)
 );
 
-alter table public.likes add column if not exists reaction_emoji text not null default '🐾';
+alter table public.likes add column if not exists reaction_emoji text not null default 'like';
+
+-- Migrate existing emoji-character values to string values
+update public.likes set reaction_emoji = 'like'  where reaction_emoji = '🐾';
+update public.likes set reaction_emoji = 'haha'  where reaction_emoji = '😹';
+update public.likes set reaction_emoji = 'love'  where reaction_emoji = '❤️';
+update public.likes set reaction_emoji = 'wow'   where reaction_emoji = '😺';
+update public.likes set reaction_emoji = 'sad'   where reaction_emoji = '😿';
+update public.likes set reaction_emoji = 'angry' where reaction_emoji = '😾';
 
 -- ── 4. COMMENTS ─────────────────────────────────────────────
 create table if not exists public.comments (
@@ -129,8 +139,28 @@ alter table public.notifications add constraint notifications_type_check
 -- ── 9. TRIGGER: auto-create profile on signup ───────────────
 create or replace function public.handle_new_user()
 returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  v_birthday date;
+  v_age      integer;
+  v_gender   text;
 begin
-  insert into public.profiles (id, username, display_name, avatar_url)
+  -- Parse birthday string from metadata (ISO date: YYYY-MM-DD)
+  begin
+    v_birthday := (new.raw_user_meta_data->>'birthday')::date;
+  exception when others then
+    v_birthday := null;
+  end;
+
+  -- Compute age from birthday
+  if v_birthday is not null then
+    v_age := date_part('year', age(v_birthday))::integer;
+  else
+    v_age := null;
+  end if;
+
+  v_gender := new.raw_user_meta_data->>'gender';
+
+  insert into public.profiles (id, username, display_name, avatar_url, birthday, age, gender)
   values (
     new.id,
     coalesce(
@@ -142,7 +172,10 @@ begin
       new.raw_user_meta_data->>'name',
       split_part(new.email, '@', 1)
     ),
-    new.raw_user_meta_data->>'avatar_url'
+    new.raw_user_meta_data->>'avatar_url',
+    v_birthday,
+    v_age,
+    v_gender
   )
   on conflict (id) do nothing;
   return new;

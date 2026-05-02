@@ -3,15 +3,16 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/lib/supabase";
-import { REACTIONS } from "@/types";
+import { REACTIONS, reactionEmoji } from "@/types";
 import { cn } from "@/lib/utils";
 import { useSession } from "@/hooks/useSession";
+import { ReactorsModal } from "./ReactorsModal";
 
 interface ReactionsButtonProps {
   postId: string;
-  myReaction: string | null;
+  myReaction: string | null;   // DB value: 'like' | 'haha' | 'love' | 'wow' | 'sad' | 'angry' | null
   count: number;
-  onReactionChange?: (emoji: string | null, delta: number) => void;
+  onReactionChange?: (value: string | null, delta: number) => void;
 }
 
 export function ReactionsButton({
@@ -25,10 +26,10 @@ export function ReactionsButton({
   const [localCount, setLocalCount] = useState(count);
   const [pending, setPending] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [showReactors, setShowReactors] = useState(false);
   const [longPressTimer, setLongPressTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Sync from parent when post refreshes
   useEffect(() => { setCurrent(myReaction); }, [myReaction]);
   useEffect(() => { setLocalCount(count); }, [count]);
 
@@ -42,23 +43,23 @@ export function ReactionsButton({
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const applyReaction = async (emoji: string) => {
+  const applyReaction = async (value: string) => {
     if (!user || pending) return;
     setPickerOpen(false);
     setPending(true);
 
     const wasReacted = current !== null;
-    const isSame = current === emoji;
+    const isSame = current === value;
 
-    // Optimistic
+    // Optimistic update
     if (isSame) {
       setCurrent(null);
       setLocalCount((c) => Math.max(0, c - 1));
       onReactionChange?.(null, -1);
     } else {
-      setCurrent(emoji);
+      setCurrent(value);
       setLocalCount((c) => wasReacted ? c : c + 1);
-      onReactionChange?.(emoji, wasReacted ? 0 : 1);
+      onReactionChange?.(value, wasReacted ? 0 : 1);
     }
 
     try {
@@ -69,19 +70,18 @@ export function ReactionsButton({
           .eq("post_id", postId)
           .eq("user_id", user.id);
       } else if (wasReacted) {
-        // Update emoji
         await supabase
           .from("likes")
-          .update({ reaction_emoji: emoji })
+          .update({ reaction_emoji: value })
           .eq("post_id", postId)
           .eq("user_id", user.id);
       } else {
         await supabase
           .from("likes")
-          .insert({ post_id: postId, user_id: user.id, reaction_emoji: emoji });
+          .insert({ post_id: postId, user_id: user.id, reaction_emoji: value });
       }
     } catch {
-      // Revert
+      // Revert on error
       setCurrent(myReaction);
       setLocalCount(count);
       onReactionChange?.(myReaction, 0);
@@ -93,11 +93,9 @@ export function ReactionsButton({
   const handleClick = () => {
     if (!user) return;
     if (current) {
-      // Quick tap removes current reaction
-      applyReaction(current);
+      applyReaction(current); // tap active = remove
     } else {
-      // Quick tap = paw reaction
-      applyReaction("🐾");
+      applyReaction("like");  // tap empty = quick paw
     }
   };
 
@@ -114,64 +112,85 @@ export function ReactionsButton({
     }
   };
 
-  const displayEmoji = current ?? "🐾";
+  const displayEmoji = reactionEmoji(current);
   const isActive = current !== null;
 
   return (
-    <div className="relative" ref={containerRef}>
-      <motion.button
-        whileHover={{ scale: 1.08 }}
-        whileTap={{ scale: 0.88 }}
-        transition={{ type: "spring", stiffness: 600, damping: 20 }}
-        onClick={handleClick}
-        onMouseDown={handleMouseDown}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-        onTouchStart={handleMouseDown}
-        onTouchEnd={handleMouseUp}
-        disabled={pending || !user}
-        className={cn(
-          "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition-colors",
-          isActive
-            ? "bg-paw-pink/15 text-paw-pink font-semibold"
-            : "text-muted-foreground hover:bg-paw-pink/10 hover:text-paw-pink"
-        )}
-        aria-label="React"
-      >
-        <span className="text-base leading-none">{displayEmoji}</span>
-        {localCount > 0 && <span>{localCount}</span>}
-      </motion.button>
+    <>
+      <div className="relative flex items-center gap-0.5" ref={containerRef}>
+        <motion.button
+          whileHover={{ scale: 1.08 }}
+          whileTap={{ scale: 0.88 }}
+          transition={{ type: "spring", stiffness: 600, damping: 20 }}
+          onClick={handleClick}
+          onMouseDown={handleMouseDown}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+          onTouchStart={handleMouseDown}
+          onTouchEnd={handleMouseUp}
+          disabled={pending || !user}
+          className={cn(
+            "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition-colors",
+            isActive
+              ? "bg-paw-pink/15 text-paw-pink font-semibold"
+              : "text-muted-foreground hover:bg-paw-pink/10 hover:text-paw-pink"
+          )}
+          aria-label="React"
+        >
+          <span className="text-base leading-none">{displayEmoji}</span>
+        </motion.button>
 
-      {/* Reaction picker */}
-      <AnimatePresence>
-        {pickerOpen && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8, y: 8 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.8, y: 8 }}
-            transition={{ type: "spring", stiffness: 600, damping: 28 }}
-            className="absolute bottom-10 left-0 z-50 flex items-center gap-1 rounded-2xl border border-border/60 bg-card px-2 py-2 shadow-lg"
+        {/* Clickable count opens ReactorsModal */}
+        {localCount > 0 && (
+          <button
+            onClick={() => setShowReactors(true)}
+            className={cn(
+              "rounded-full px-1.5 py-1.5 text-sm transition-colors hover:bg-paw-pink/10",
+              isActive ? "text-paw-pink font-semibold" : "text-muted-foreground"
+            )}
           >
-            {REACTIONS.map(({ emoji, label }) => (
-              <motion.button
-                key={emoji}
-                whileHover={{ scale: 1.3, y: -4 }}
-                whileTap={{ scale: 0.9 }}
-                transition={{ type: "spring", stiffness: 700, damping: 18 }}
-                onClick={() => applyReaction(emoji)}
-                className={cn(
-                  "flex h-9 w-9 items-center justify-center rounded-full text-xl transition-colors",
-                  current === emoji ? "bg-paw-pink/20" : "hover:bg-secondary"
-                )}
-                title={label}
-                aria-label={label}
-              >
-                {emoji}
-              </motion.button>
-            ))}
-          </motion.div>
+            {localCount}
+          </button>
         )}
-      </AnimatePresence>
-    </div>
+
+        {/* Reaction picker */}
+        <AnimatePresence>
+          {pickerOpen && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.8, y: 8 }}
+              transition={{ type: "spring", stiffness: 600, damping: 28 }}
+              className="absolute bottom-10 left-0 z-50 flex items-center gap-1 rounded-2xl border border-border/60 bg-card px-2 py-2 shadow-lg"
+            >
+              {REACTIONS.map(({ value, emoji, label }) => (
+                <motion.button
+                  key={value}
+                  whileHover={{ scale: 1.3, y: -4 }}
+                  whileTap={{ scale: 0.9 }}
+                  transition={{ type: "spring", stiffness: 700, damping: 18 }}
+                  onClick={() => applyReaction(value)}
+                  className={cn(
+                    "flex h-9 w-9 items-center justify-center rounded-full text-xl transition-colors",
+                    current === value ? "bg-paw-pink/20" : "hover:bg-secondary"
+                  )}
+                  title={label}
+                  aria-label={label}
+                >
+                  {emoji}
+                </motion.button>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Reactors modal */}
+      <ReactorsModal
+        postId={postId}
+        open={showReactors}
+        onClose={() => setShowReactors(false)}
+      />
+    </>
   );
 }

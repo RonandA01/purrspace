@@ -6,6 +6,8 @@ export interface Profile {
   cover_url: string | null;
   bio: string | null;
   age: number | null;
+  birthday: string | null;
+  gender: string | null;
   pet_names: string[] | null;
   pet_types: string[] | null;
   is_private: boolean;
@@ -103,12 +105,25 @@ export type NavItem = {
 };
 
 export const REACTIONS = [
-  { emoji: "🐾", label: "Paw" },
-  { emoji: "😹", label: "Laugh" },
-  { emoji: "❤️", label: "Heart" },
-  { emoji: "😺", label: "Awe" },
-  { emoji: "😿", label: "Sad" },
-  { emoji: "😾", label: "Angry" },
+  { value: "like",  emoji: "🐾", label: "Paw" },
+  { value: "haha",  emoji: "😹", label: "Purrfect" },
+  { value: "love",  emoji: "❤️", label: "Fur-ever" },
+  { value: "wow",   emoji: "😺", label: "Hiss-teresting" },
+  { value: "sad",   emoji: "😿", label: "Fur-get…" },
+  { value: "angry", emoji: "😾", label: "Hiss!" },
 ] as const;
 
+export type ReactionValue = (typeof REACTIONS)[number]["value"];
 export type ReactionEmoji = (typeof REACTIONS)[number]["emoji"];
+
+/** Map a DB reaction value to its display emoji */
+export function reactionEmoji(value: string | null): string {
+  if (!value) return "🐾";
+  return REACTIONS.find((r) => r.value === value)?.emoji ?? "🐾";
+}
+
+/** Map a DB reaction value to its label */
+export function reactionLabel(value: string | null): string {
+  if (!value) return "Paw";
+  return REACTIONS.find((r) => r.value === value)?.label ?? "Paw";
+}
