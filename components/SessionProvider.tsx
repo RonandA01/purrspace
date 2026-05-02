@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/types";
@@ -35,6 +35,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  // Ref to track current user ID without stale-closure issues
+  const currentUserIdRef = useRef<string | undefined>(undefined);
+  useEffect(() => { currentUserIdRef.current = user?.id; }, [user]);
 
   const refreshProfile = useCallback(async () => {
     const { data: { session: s } } = await supabase.auth.getSession();
@@ -65,15 +68,23 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, s) => {
         console.log("[SESSION] onAuthStateChange:", event);
-        // TOKEN_REFRESHED fires on tab focus — just swap the token, don't
-        // clear user/profile or show any loading state.
-        if (event === "TOKEN_REFRESHED") {
-          setSession(s);
-          return;
-        }
+
         // INITIAL_SESSION is already handled by getSession() above.
         if (event === "INITIAL_SESSION") return;
 
+        // TOKEN_REFRESHED and SIGNED_IN both fire on tab focus after a token
+        // refresh. If it's the same user, just swap the session object — do NOT
+        // re-fetch profile or touch loading state (avoids the data-flash).
+        if (
+          event === "TOKEN_REFRESHED" ||
+          (event === "SIGNED_IN" && s?.user.id === currentUserIdRef.current)
+        ) {
+          setSession(s);
+          setUser(s?.user ?? null); // update the user object (token may have changed)
+          return;
+        }
+
+        // Genuine sign-in (new user) or sign-out
         setSession(s);
         setUser(s?.user ?? null);
         setProfile(s ? await fetchProfile(s.user.id) : null);

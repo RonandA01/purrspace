@@ -185,9 +185,9 @@ export function Feed() {
       if (document.visibilityState !== "visible") return;
       console.log("[FEED] Tab became visible — refetching feed");
       console.log("[FEED] Fetch started");
-      const { data: { user } } = await supabase.auth.getUser();
-      userIdRef.current = user?.id;
-      const fresh = await fetchPosts(user?.id, null);
+      // Use cached userId — avoids acquiring the auth lock while Supabase is
+      // simultaneously refreshing the token, which caused the 5000ms lock warning.
+      const fresh = await fetchPosts(userIdRef.current, null);
       console.log("[FEED] Fetch completed:", fresh.length, "posts");
       setPosts(fresh);
       setHasMore(fresh.length === PAGE_SIZE);
