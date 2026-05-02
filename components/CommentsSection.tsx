@@ -157,11 +157,16 @@ export function CommentsSection({ postId, commentCount, onCountChange }: Comment
             if (newComment.parent_id) {
               return prev.map((c) =>
                 c.id === newComment.parent_id
-                  ? { ...c, replies: [...(c.replies ?? []), newComment] }
+                  ? {
+                      ...c,
+                      replies: (c.replies ?? []).some((r) => r.id === newComment.id)
+                        ? c.replies!           // already added optimistically, skip
+                        : [...(c.replies ?? []), newComment],
+                    }
                   : c
               );
             }
-            // avoid duplicate optimistic entry
+            // avoid duplicate optimistic top-level entry
             if (prev.some((c) => c.id === newComment.id)) return prev;
             return [...prev, newComment];
           });

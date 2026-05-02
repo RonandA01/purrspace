@@ -47,12 +47,14 @@ function initials(name?: string | null) {
 }
 
 export function AlertsView() {
-  const { user } = useSession();
+  const { user, loading: sessionLoading } = useSession();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   useEffect(() => {
+    // Wait until session is resolved before deciding the user is absent
+    if (sessionLoading) return;
     if (!user) { setLoading(false); return; }
     let mounted = true;
 
@@ -93,7 +95,7 @@ export function AlertsView() {
       mounted = false;
       if (channelRef.current) { supabase.removeChannel(channelRef.current); channelRef.current = null; }
     };
-  }, [user]);
+  }, [user, sessionLoading]);
 
   const markAllRead = async () => {
     if (!user) return;

@@ -161,23 +161,25 @@ export function ReactionsButton({
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.8, y: 8 }}
               transition={{ type: "spring", stiffness: 600, damping: 28 }}
-              className="absolute bottom-10 left-0 z-50 flex items-center gap-1 rounded-2xl border border-border/60 bg-card px-2 py-2 shadow-lg"
+              className="absolute bottom-10 left-0 z-50 flex items-center gap-1 rounded-2xl border border-border/60 bg-card px-2 py-2.5 shadow-lg"
             >
               {REACTIONS.map(({ value, emoji, label }) => (
                 <motion.button
                   key={value}
-                  whileHover={{ scale: 1.3, y: -4 }}
+                  whileHover={{ scale: 1.25, y: -6 }}
                   whileTap={{ scale: 0.9 }}
                   transition={{ type: "spring", stiffness: 700, damping: 18 }}
                   onClick={() => applyReaction(value)}
                   className={cn(
-                    "flex h-9 w-9 items-center justify-center rounded-full text-xl transition-colors",
+                    "flex flex-col items-center gap-0.5 rounded-xl px-1.5 py-1 transition-colors",
                     current === value ? "bg-paw-pink/20" : "hover:bg-secondary"
                   )}
-                  title={label}
                   aria-label={label}
                 >
-                  {emoji}
+                  <span className="text-xl leading-none">{emoji}</span>
+                  <span className="text-[9px] font-semibold text-muted-foreground leading-none whitespace-nowrap">
+                    {label}
+                  </span>
                 </motion.button>
               ))}
             </motion.div>
