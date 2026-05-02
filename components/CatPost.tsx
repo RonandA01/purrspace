@@ -1,15 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ChatCircle, ArrowsCounterClockwise } from "@phosphor-icons/react";
+import { ChatCircle, ArrowsCounterClockwise, DotsThree, Trash } from "@phosphor-icons/react";
 import { ReactionsButton } from "./ReactionsButton";
 import { CommentsSection } from "./CommentsSection";
 import { ShareButton } from "./ShareButton";
 import { PawmarkButton } from "./PawmarkButton";
+import { supabase } from "@/lib/supabase";
+import { useSession } from "@/hooks/useSession";
+import { toast } from "sonner";
 import type { Post } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -42,12 +45,42 @@ function initials(name?: string | null) {
 }
 
 export function CatPost({ post, className, alwaysShowComments = false, highlightCommentId }: CatPostProps) {
+  const { user } = useSession();
   const [likeCount, setLikeCount] = useState(post.like_count ?? 0);
   const [myReaction, setMyReaction] = useState<string | null>(post.my_reaction ?? null);
   const [commentCount, setCommentCount] = useState(post.comment_count ?? 0);
   const [shareCount, setShareCount] = useState(post.share_count ?? 0);
   const [pawmarked, setPawmarked] = useState(post.pawmarked_by_me ?? false);
   const [showComments, setShowComments] = useState(alwaysShowComments);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const isOwn = Boolean(user && user.id === post.author_id);
+
+  // Close menu on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node))
+        setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const handleDelete = async () => {
+    if (!user || deleting) return;
+    setDeleting(true);
+    setMenuOpen(false);
+    const { error } = await supabase.from("posts").delete().eq("id", post.id);
+    if (error) {
+      toast.error("Failed to delete post.");
+      setDeleting(false);
+    } else {
+      window.dispatchEvent(new CustomEvent("purrspace:remove-post", { detail: { id: post.id } }));
+      toast("Post deleted 🗑️");
+    }
+  };
 
   const handleReactionChange = (emoji: string | null, delta: number) => {
     setMyReaction(emoji);
@@ -103,6 +136,41 @@ export function CatPost({ post, className, alwaysShowComments = false, highlight
               {formatRelativeTime(post.created_at)}
             </p>
           </div>
+
+          {/* Owner actions menu */}
+          {isOwn && (
+            <div className="relative shrink-0" ref={menuRef}>
+              <motion.button
+                whileTap={{ scale: 0.88 }}
+                onClick={() => setMenuOpen((o) => !o)}
+                className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+                aria-label="Post options"
+              >
+                <DotsThree size={18} weight="bold" />
+              </motion.button>
+
+              <AnimatePresence>
+                {menuOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.92, y: -4 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.92, y: -4 }}
+                    transition={{ type: "spring", stiffness: 600, damping: 28 }}
+                    className="absolute right-0 top-8 z-50 min-w-[140px] rounded-2xl border border-border/60 bg-card shadow-lg overflow-hidden"
+                  >
+                    <button
+                      onClick={handleDelete}
+                      disabled={deleting}
+                      className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors disabled:opacity-50"
+                    >
+                      <Trash size={14} weight="duotone" />
+                      {deleting ? "Deleting…" : "Delete post"}
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
         </CardHeader>
 
         <CardContent className="px-5 pb-4 space-y-3">
