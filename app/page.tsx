@@ -19,12 +19,7 @@ export default function DashboardPage() {
 
           <ComposeBox />
 
-          {/* Cat-ear feed container */}
-          <div className="relative pt-2">
-            <div className="cat-ears relative rounded-3xl">
-              <Feed />
-            </div>
-          </div>
+          <Feed />
         </div>
       </main>
 

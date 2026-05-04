@@ -142,27 +142,6 @@
   }
 }
 
-/* Cat ear clip-path on feed container */
-.cat-ears::before,
-.cat-ears::after {
-  content: "";
-  position: absolute;
-  top: -12px;
-  width: 28px;
-  height: 28px;
-  background: var(--card);
-  border: 1.5px solid var(--border);
-  clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
-  z-index: 1;
-}
-
-.cat-ears::before {
-  left: 24px;
-}
-
-.cat-ears::after {
-  right: 24px;
-}
 
 /* Paw-print particle keyframes */
 @keyframes paw-float {
