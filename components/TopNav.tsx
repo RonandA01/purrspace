@@ -33,7 +33,9 @@ export function TopNav() {
   const handleLogout = async () => {
     setOpen(false);
     await supabase.auth.signOut();
-    router.push("/");
+    // Hard redirect so the router cache is fully cleared and all
+    // in-memory session state is wiped along with the page.
+    window.location.href = "/login";
   };
 
   return (
