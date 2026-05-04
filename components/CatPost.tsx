@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ChatCircle, DotsThree, Archive } from "@phosphor-icons/react";
 import { ReactionsButton } from "./ReactionsButton";
@@ -124,7 +123,7 @@ export function CatPost({ post, className, alwaysShowComments = false, highlight
       transition={{ type: "spring", stiffness: 380, damping: 30 }}
       className={cn("w-full", className)}
     >
-      <Card className="rounded-3xl border-border/60 bg-card shadow-sm hover:shadow-md transition-shadow duration-200">
+      <div className="rounded-3xl border border-border/60 bg-card shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden">
 
         {/* Repost banner — no icon, just a small label */}
         {isRepost && (
@@ -136,7 +135,7 @@ export function CatPost({ post, className, alwaysShowComments = false, highlight
           </div>
         )}
 
-        <CardHeader className="flex flex-row items-center gap-3 pb-2 pt-4 px-5">
+        <div className="flex flex-row items-center gap-3 pb-2 pt-4 px-5">
           <Link href={`/profile/${displayAuthor?.username ?? ""}`}>
             <Avatar className="h-10 w-10 ring-2 ring-paw-pink/30 hover:ring-paw-pink/60 transition-all">
               <AvatarImage
@@ -195,9 +194,9 @@ export function CatPost({ post, className, alwaysShowComments = false, highlight
               </AnimatePresence>
             </div>
           )}
-        </CardHeader>
+        </div>
 
-        <CardContent className="px-5 pb-4 space-y-3">
+        <div className="px-5 pb-4 space-y-3">
           <p className="text-sm leading-relaxed text-foreground/90 whitespace-pre-wrap">
             {post.content}
           </p>
@@ -342,8 +341,8 @@ export function CatPost({ post, className, alwaysShowComments = false, highlight
               </motion.div>
             )}
           </AnimatePresence>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </motion.div>
   );
 }
