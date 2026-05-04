@@ -5,7 +5,7 @@ import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ChatCircle, ArrowsCounterClockwise, DotsThree, Archive } from "@phosphor-icons/react";
+import { ChatCircle, DotsThree, Archive } from "@phosphor-icons/react";
 import { ReactionsButton } from "./ReactionsButton";
 import { CommentsSection } from "./CommentsSection";
 import { ShareButton } from "./ShareButton";
@@ -126,16 +126,13 @@ export function CatPost({ post, className, alwaysShowComments = false, highlight
     >
       <Card className="rounded-3xl border-border/60 bg-card shadow-sm hover:shadow-md transition-shadow duration-200">
 
-        {/* Repost banner */}
+        {/* Repost banner — no icon, just a small label */}
         {isRepost && (
-          <div className="flex items-center gap-1.5 px-5 pt-3 text-[11px] text-muted-foreground">
-            <ArrowsCounterClockwise size={11} weight="bold" />
-            <span>
-              <span className="font-semibold text-foreground/80">{displayAuthor?.display_name ?? "Someone"}</span>
-              {" shared "}
-              <span className="font-semibold text-foreground/80">{resolvedOriginal?.author?.display_name ?? "someone"}</span>
-              {"'s post"}
-            </span>
+          <div className="px-5 pt-3 text-[11px] text-muted-foreground">
+            <span className="font-semibold text-foreground/70">{displayAuthor?.display_name ?? "Someone"}</span>
+            {" shared "}
+            <span className="font-semibold text-foreground/70">{resolvedOriginal?.author?.display_name ?? "a"}</span>
+            {"'s post"}
           </div>
         )}
 
@@ -217,37 +214,48 @@ export function CatPost({ post, className, alwaysShowComments = false, highlight
             </div>
           )}
 
-          {/* Shared original post preview */}
+          {/* Shared original post — Facebook-style embedded card */}
           {isRepost && (
-            <div className="rounded-2xl border border-border/60 bg-secondary/40 px-4 py-3 space-y-1">
+            <div className="rounded-2xl border border-border/60 bg-secondary/30 overflow-hidden">
               {resolvedOriginal ? (
                 <>
-                  <div className="flex items-center gap-1.5">
-                    <Avatar className="h-5 w-5">
-                      <AvatarImage src={resolvedOriginal.author?.avatar_url ?? undefined} />
-                      <AvatarFallback className="bg-paw-pink-light text-paw-pink text-[9px] font-bold">
-                        {initials(resolvedOriginal.author?.display_name)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="text-xs font-semibold">
-                      {resolvedOriginal.author?.display_name}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      @{resolvedOriginal.author?.username}
-                    </span>
+                  {/* Original author header */}
+                  <div className="flex items-center gap-2.5 px-4 pt-3 pb-2">
+                    <Link href={`/profile/${resolvedOriginal.author?.username ?? ""}`}>
+                      <Avatar className="h-9 w-9 ring-2 ring-paw-pink/20 shrink-0">
+                        <AvatarImage src={resolvedOriginal.author?.avatar_url ?? undefined} />
+                        <AvatarFallback className="bg-paw-pink-light text-paw-pink text-xs font-bold">
+                          {initials(resolvedOriginal.author?.display_name)}
+                        </AvatarFallback>
+                      </Avatar>
+                    </Link>
+                    <div className="min-w-0">
+                      <Link href={`/profile/${resolvedOriginal.author?.username ?? ""}`} className="hover:underline">
+                        <p className="text-sm font-semibold leading-tight truncate">
+                          {resolvedOriginal.author?.display_name ?? "Unknown"}
+                        </p>
+                      </Link>
+                      <p className="text-[11px] text-muted-foreground">
+                        @{resolvedOriginal.author?.username ?? ""}
+                      </p>
+                    </div>
                   </div>
+
+                  {/* Original content */}
                   {resolvedOriginal.content && (
-                    <p className="text-xs text-foreground/80 leading-relaxed line-clamp-3">
+                    <p className="px-4 pb-3 text-sm leading-relaxed text-foreground/85 whitespace-pre-wrap line-clamp-4">
                       {resolvedOriginal.content}
                     </p>
                   )}
+
+                  {/* Original image */}
                   {resolvedOriginal.image_url && (
-                    <div className="rounded-xl overflow-hidden border border-border/40 mt-1">
+                    <div className="border-t border-border/40">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={resolvedOriginal.image_url}
                         alt="Original post"
-                        className="w-full object-cover max-h-40"
+                        className="w-full object-cover max-h-60"
                         loading="lazy"
                       />
                     </div>
@@ -255,13 +263,16 @@ export function CatPost({ post, className, alwaysShowComments = false, highlight
                 </>
               ) : (
                 /* Skeleton while loading original */
-                <div className="space-y-2 animate-pulse">
-                  <div className="flex items-center gap-2">
-                    <div className="h-5 w-5 rounded-full bg-border/60" />
-                    <div className="h-2.5 w-20 rounded bg-border/60" />
+                <div className="px-4 py-3 space-y-2 animate-pulse">
+                  <div className="flex items-center gap-2.5">
+                    <div className="h-9 w-9 rounded-full bg-border/60 shrink-0" />
+                    <div className="space-y-1.5 flex-1">
+                      <div className="h-3 w-28 rounded bg-border/60" />
+                      <div className="h-2.5 w-16 rounded bg-border/60" />
+                    </div>
                   </div>
-                  <div className="h-2.5 w-full rounded bg-border/60" />
-                  <div className="h-2.5 w-3/4 rounded bg-border/60" />
+                  <div className="h-3 w-full rounded bg-border/60" />
+                  <div className="h-3 w-4/5 rounded bg-border/60" />
                 </div>
               )}
             </div>
