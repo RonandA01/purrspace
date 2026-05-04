@@ -9,23 +9,25 @@ import { cn } from "@/lib/utils";
 import { PawPrintIcon } from "./PawPrintIcon";
 
 const TYPE_ICON: Record<Notification["type"], string> = {
-  like:     "🐾",
-  reaction: "🐾",
-  follow:   "😻",
-  reply:    "💬",
-  comment:  "💬",
-  mention:  "📣",
-  share:    "🔄",
+  like:             "🐾",
+  reaction:         "🐾",
+  comment_reaction: "🐾",
+  follow:           "😻",
+  reply:            "💬",
+  comment:          "💬",
+  mention:          "📣",
+  share:            "🔄",
 };
 
 const TYPE_LABEL: Record<Notification["type"], string> = {
-  like:     "reacted to your post",
-  reaction: "reacted to your post",
-  follow:   "started following you",
-  reply:    "replied to your comment",
-  comment:  "commented on your post",
-  mention:  "mentioned you",
-  share:    "shared your post",
+  like:             "reacted to your post",
+  reaction:         "reacted to your post",
+  comment_reaction: "reacted to your comment",
+  follow:           "started following you",
+  reply:            "replied to your comment",
+  comment:          "commented on your post",
+  mention:          "mentioned you",
+  share:            "shared your post",
 };
 
 export function NotificationBell({ userId }: { userId: string }) {

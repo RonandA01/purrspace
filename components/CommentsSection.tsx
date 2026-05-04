@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowBendDownRight, FilmSlate, PaperPlaneTilt } from "@phosphor-icons/react";
+import { CommentReactionButton } from "./CommentReactionButton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { supabase } from "@/lib/supabase";
 import { useSession } from "@/hooks/useSession";
@@ -36,9 +37,10 @@ interface CommentItemProps {
   depth?: number;
   onReply: (parentId: string, mentionName: string) => void;
   highlightCommentId?: string;
+  postId: string;
 }
 
-function CommentItem({ comment, depth = 0, onReply, highlightCommentId }: CommentItemProps) {
+function CommentItem({ comment, depth = 0, onReply, highlightCommentId, postId }: CommentItemProps) {
   const isTarget = comment.id === highlightCommentId;
   const itemRef = useRef<HTMLDivElement>(null);
   const [highlighted, setHighlighted] = useState(isTarget);
@@ -106,6 +108,14 @@ function CommentItem({ comment, depth = 0, onReply, highlightCommentId }: Commen
 
         <div className="flex items-center gap-3 mt-1 px-1">
           <span className="text-[10px] text-muted-foreground">{timeAgo(comment.created_at)}</span>
+
+          {/* Reaction button — tap for quick paw, hold for picker */}
+          <CommentReactionButton
+            commentId={comment.id}
+            commentAuthorId={comment.author_id}
+            postId={postId}
+          />
+
           {depth === 0 && (
             <button
               onClick={() => onReply(comment.id, comment.author?.display_name ?? "someone")}
@@ -127,6 +137,7 @@ function CommentItem({ comment, depth = 0, onReply, highlightCommentId }: Commen
                 depth={1}
                 onReply={onReply}
                 highlightCommentId={highlightCommentId}
+                postId={postId}
               />
             ))}
           </div>
@@ -335,6 +346,7 @@ export function CommentsSection({
                 comment={c}
                 onReply={handleReply}
                 highlightCommentId={highlightCommentId}
+                postId={postId}
               />
             ))}
           </div>

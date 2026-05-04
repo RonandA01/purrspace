@@ -601,6 +601,43 @@ create policy "Users can update own avatars"
   on storage.objects for update
   using (bucket_id = 'avatars' and auth.uid()::text = (storage.foldername(name))[1]);
 
+-- ── 20. COMMENT REACTIONS ────────────────────────────────────
+create table if not exists public.comment_reactions (
+  id            uuid primary key default gen_random_uuid(),
+  user_id       uuid not null references public.profiles(id) on delete cascade,
+  comment_id    uuid not null references public.comments(id) on delete cascade,
+  reaction_type text not null,
+  created_at    timestamptz not null default now(),
+  constraint comment_reactions_unique unique (user_id, comment_id)
+);
+
+alter table public.comment_reactions enable row level security;
+
+drop policy if exists "Comment reactions are public" on public.comment_reactions;
+create policy "Comment reactions are public"
+  on public.comment_reactions for select using (true);
+
+drop policy if exists "Users can add comment reaction" on public.comment_reactions;
+create policy "Users can add comment reaction"
+  on public.comment_reactions for insert
+  with check (auth.uid() = user_id);
+
+drop policy if exists "Users can update own comment reaction" on public.comment_reactions;
+create policy "Users can update own comment reaction"
+  on public.comment_reactions for update
+  using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+drop policy if exists "Users can remove own comment reaction" on public.comment_reactions;
+create policy "Users can remove own comment reaction"
+  on public.comment_reactions for delete
+  using (auth.uid() = user_id);
+
+-- Allow authenticated users to insert comment_reaction notifications
+drop policy if exists "Authenticated users can insert notifications" on public.notifications;
+create policy "Authenticated users can insert notifications"
+  on public.notifications for insert
+  with check (auth.uid() = actor_id);
+
 -- ── 20. REALTIME ─────────────────────────────────────────────
 -- Add each table only if not already a member of the publication
 do $$

@@ -71,7 +71,7 @@ export interface Notification {
   id: string;
   user_id: string;
   actor_id: string | null;
-  type: "like" | "follow" | "reply" | "mention" | "comment" | "share" | "reaction";
+  type: "like" | "follow" | "reply" | "mention" | "comment" | "share" | "reaction" | "comment_reaction";
   post_id: string | null;
   comment_id: string | null;
   read: boolean;

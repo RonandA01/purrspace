@@ -12,23 +12,25 @@ import type { Notification } from "@/types";
 import { cn } from "@/lib/utils";
 
 const TYPE_ICON: Record<Notification["type"], string> = {
-  like:     "🐾",
-  reaction: "🐾",
-  follow:   "😻",
-  reply:    "💬",
-  comment:  "💬",
-  mention:  "📣",
-  share:    "🔄",
+  like:             "🐾",
+  reaction:         "🐾",
+  comment_reaction: "🐾",
+  follow:           "😻",
+  reply:            "💬",
+  comment:          "💬",
+  mention:          "📣",
+  share:            "🔄",
 };
 
 const TYPE_LABEL: Record<Notification["type"], string> = {
-  like:     "reacted to your post",
-  reaction: "reacted to your post",
-  follow:   "started following you",
-  reply:    "replied to your comment",
-  comment:  "commented on your post",
-  mention:  "mentioned you",
-  share:    "shared your post",
+  like:             "reacted to your post",
+  reaction:         "reacted to your post",
+  comment_reaction: "reacted to your comment",
+  follow:           "started following you",
+  reply:            "replied to your comment",
+  comment:          "commented on your post",
+  mention:          "mentioned you",
+  share:            "shared your post",
 };
 
 function timeAgo(dateStr: string) {
@@ -49,8 +51,10 @@ function initials(name?: string | null) {
 
 function notificationHref(n: import("@/types").Notification): string {
   if (n.type === "follow") return `/profile/${n.actor?.username ?? ""}`;
-  if ((n.type === "comment" || n.type === "reply") && n.post_id && n.comment_id)
-    return `/post/${n.post_id}?comment=${n.comment_id}`;
+  if (
+    (n.type === "comment" || n.type === "reply" || n.type === "comment_reaction") &&
+    n.post_id && n.comment_id
+  ) return `/post/${n.post_id}?comment=${n.comment_id}`;
   if (n.post_id) return `/post/${n.post_id}`;
   return "#";
 }
