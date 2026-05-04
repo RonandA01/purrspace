@@ -34,16 +34,28 @@ export function ShareButton({ post, shareCount, onShare }: ShareButtonProps) {
   const [modalOpen, setModalOpen] = useState(false);
   const [caption, setCaption] = useState("");
   const [pending, setPending] = useState(false);
+  // Fetched on modal open to guarantee author + content are always present
+  const [originalPost, setOriginalPost] = useState<Post | null>(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // The original post being shared (follow the chain so we never nest a repost)
-  const originalPost = post.shared_from ?? post;
-
-  const openModal = () => {
+  const openModal = async () => {
     setMenuOpen(false);
     setCaption("");
+    setOriginalPost(null);
     setModalOpen(true);
     setTimeout(() => textareaRef.current?.focus(), 80);
+
+    // Always fetch the original (un-nested) post so author is guaranteed to load
+    const targetId = post.shared_from_id ?? post.id;
+    setLoadingPreview(true);
+    const { data } = await supabase
+      .from("posts")
+      .select("*, author:profiles(*)")
+      .eq("id", targetId)
+      .single();
+    setOriginalPost((data as Post) ?? null);
+    setLoadingPreview(false);
   };
 
   const closeModal = () => {
@@ -54,11 +66,13 @@ export function ShareButton({ post, shareCount, onShare }: ShareButtonProps) {
   const handleRepost = async () => {
     if (!user || !caption.trim() || pending) return;
     setPending(true);
+    // Use the fetched post id; fall back to the prop chain
+    const sharedFromId = originalPost?.id ?? post.shared_from_id ?? post.id;
     try {
       const { error } = await supabase.from("posts").insert({
         author_id: user.id,
         content: caption.trim(),
-        shared_from_id: originalPost.id,
+        shared_from_id: sharedFromId,
       });
       if (error) throw error;
       onShare?.();
@@ -200,38 +214,54 @@ export function ShareButton({ post, shareCount, onShare }: ShareButtonProps) {
 
               {/* Original post preview */}
               <div className="mx-5 mb-4 rounded-2xl border border-border/60 bg-secondary/40 overflow-hidden">
-                {/* Original author */}
-                <div className="flex items-center gap-2 px-4 pt-3 pb-1">
-                  <Avatar className="h-6 w-6 shrink-0">
-                    <AvatarImage src={originalPost.author?.avatar_url ?? undefined} />
-                    <AvatarFallback className="bg-paw-pink-light text-paw-pink text-[9px] font-bold">
-                      {initials(originalPost.author?.display_name)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <span className="text-xs font-semibold truncate">
-                    {originalPost.author?.display_name ?? "Unknown"}
-                  </span>
-                  <span className="text-[10px] text-muted-foreground truncate">
-                    @{originalPost.author?.username}
-                  </span>
-                </div>
-
-                {/* Original content */}
-                <p className="px-4 pb-3 text-xs leading-relaxed text-foreground/80 line-clamp-4 whitespace-pre-wrap">
-                  {originalPost.content}
-                </p>
-
-                {/* Original image */}
-                {originalPost.image_url && (
-                  <div className="border-t border-border/40">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={originalPost.image_url}
-                      alt="Original post"
-                      className="w-full object-cover max-h-40"
-                      loading="lazy"
-                    />
+                {loadingPreview || !originalPost ? (
+                  /* Skeleton while fetching */
+                  <div className="px-4 py-3 space-y-2 animate-pulse">
+                    <div className="flex items-center gap-2">
+                      <div className="h-6 w-6 rounded-full bg-border/60" />
+                      <div className="h-3 w-24 rounded bg-border/60" />
+                    </div>
+                    <div className="h-3 w-full rounded bg-border/60" />
+                    <div className="h-3 w-3/4 rounded bg-border/60" />
                   </div>
+                ) : (
+                  <>
+                    {/* Original author */}
+                    <div className="flex items-center gap-2 px-4 pt-3 pb-1">
+                      <Avatar className="h-6 w-6 shrink-0">
+                        <AvatarImage src={originalPost.author?.avatar_url ?? undefined} />
+                        <AvatarFallback className="bg-paw-pink-light text-paw-pink text-[9px] font-bold">
+                          {initials(originalPost.author?.display_name)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="text-xs font-semibold truncate">
+                        {originalPost.author?.display_name ?? "Unknown"}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground truncate">
+                        @{originalPost.author?.username}
+                      </span>
+                    </div>
+
+                    {/* Original content */}
+                    {originalPost.content && (
+                      <p className="px-4 pb-3 text-xs leading-relaxed text-foreground/80 line-clamp-4 whitespace-pre-wrap">
+                        {originalPost.content}
+                      </p>
+                    )}
+
+                    {/* Original image */}
+                    {originalPost.image_url && (
+                      <div className="border-t border-border/40">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={originalPost.image_url}
+                          alt="Original post"
+                          className="w-full object-cover max-h-40"
+                          loading="lazy"
+                        />
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
 
