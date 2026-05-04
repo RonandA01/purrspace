@@ -151,7 +151,7 @@ alter table public.notifications add column if not exists comment_id uuid refere
 -- Drop old type constraint and recreate with all types
 alter table public.notifications drop constraint if exists notifications_type_check;
 alter table public.notifications add constraint notifications_type_check
-  check (type in ('like', 'follow', 'reply', 'mention', 'comment', 'share', 'reaction'));
+  check (type in ('like', 'follow', 'reply', 'mention', 'comment', 'share', 'reaction', 'comment_reaction'));
 
 -- ── 9. TRIGGER: auto-create profile on signup ───────────────
 create or replace function public.handle_new_user()

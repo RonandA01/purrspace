@@ -93,6 +93,30 @@ export function CatPost({ post, className, alwaysShowComments = false, highlight
   const isRepost = Boolean(post.shared_from_id);
   const displayAuthor = post.author;
 
+  // PostgREST self-joins don't reliably resolve nested authors.
+  // Fetch post + profile in two flat queries to guarantee author data.
+  const [resolvedOriginal, setResolvedOriginal] = useState<Post | null>(null);
+  useEffect(() => {
+    if (!post.shared_from_id) return;
+    let cancelled = false;
+    (async () => {
+      const { data: postData } = await supabase
+        .from("posts")
+        .select("*")
+        .eq("id", post.shared_from_id)
+        .single();
+      if (!postData || cancelled) return;
+
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", postData.author_id)
+        .single();
+      if (!cancelled) setResolvedOriginal({ ...postData, author: profileData ?? undefined } as Post);
+    })();
+    return () => { cancelled = true; };
+  }, [post.shared_from_id]);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
@@ -103,13 +127,13 @@ export function CatPost({ post, className, alwaysShowComments = false, highlight
       <Card className="rounded-3xl border-border/60 bg-card shadow-sm hover:shadow-md transition-shadow duration-200">
 
         {/* Repost banner */}
-        {isRepost && post.shared_from && (
+        {isRepost && (
           <div className="flex items-center gap-1.5 px-5 pt-3 text-[11px] text-muted-foreground">
             <ArrowsCounterClockwise size={11} weight="bold" />
             <span>
               <span className="font-semibold text-foreground/80">{displayAuthor?.display_name ?? "Someone"}</span>
               {" shared "}
-              <span className="font-semibold text-foreground/80">{post.shared_from.author?.display_name ?? "someone"}</span>
+              <span className="font-semibold text-foreground/80">{resolvedOriginal?.author?.display_name ?? "someone"}</span>
               {"'s post"}
             </span>
           </div>
@@ -194,25 +218,52 @@ export function CatPost({ post, className, alwaysShowComments = false, highlight
           )}
 
           {/* Shared original post preview */}
-          {isRepost && post.shared_from && (
+          {isRepost && (
             <div className="rounded-2xl border border-border/60 bg-secondary/40 px-4 py-3 space-y-1">
-              <div className="flex items-center gap-1.5">
-                <Avatar className="h-5 w-5">
-                  <AvatarImage src={post.shared_from.author?.avatar_url ?? undefined} />
-                  <AvatarFallback className="bg-paw-pink-light text-paw-pink text-[9px] font-bold">
-                    {initials(post.shared_from.author?.display_name)}
-                  </AvatarFallback>
-                </Avatar>
-                <span className="text-xs font-semibold">
-                  {post.shared_from.author?.display_name}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  @{post.shared_from.author?.username}
-                </span>
-              </div>
-              <p className="text-xs text-foreground/80 leading-relaxed line-clamp-3">
-                {post.shared_from.content}
-              </p>
+              {resolvedOriginal ? (
+                <>
+                  <div className="flex items-center gap-1.5">
+                    <Avatar className="h-5 w-5">
+                      <AvatarImage src={resolvedOriginal.author?.avatar_url ?? undefined} />
+                      <AvatarFallback className="bg-paw-pink-light text-paw-pink text-[9px] font-bold">
+                        {initials(resolvedOriginal.author?.display_name)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="text-xs font-semibold">
+                      {resolvedOriginal.author?.display_name}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      @{resolvedOriginal.author?.username}
+                    </span>
+                  </div>
+                  {resolvedOriginal.content && (
+                    <p className="text-xs text-foreground/80 leading-relaxed line-clamp-3">
+                      {resolvedOriginal.content}
+                    </p>
+                  )}
+                  {resolvedOriginal.image_url && (
+                    <div className="rounded-xl overflow-hidden border border-border/40 mt-1">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={resolvedOriginal.image_url}
+                        alt="Original post"
+                        className="w-full object-cover max-h-40"
+                        loading="lazy"
+                      />
+                    </div>
+                  )}
+                </>
+              ) : (
+                /* Skeleton while loading original */
+                <div className="space-y-2 animate-pulse">
+                  <div className="flex items-center gap-2">
+                    <div className="h-5 w-5 rounded-full bg-border/60" />
+                    <div className="h-2.5 w-20 rounded bg-border/60" />
+                  </div>
+                  <div className="h-2.5 w-full rounded bg-border/60" />
+                  <div className="h-2.5 w-3/4 rounded bg-border/60" />
+                </div>
+              )}
             </div>
           )}
 
