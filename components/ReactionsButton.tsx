@@ -128,9 +128,11 @@ export function ReactionsButton({
           onMouseLeave={handleMouseUp}
           onTouchStart={handleMouseDown}
           onTouchEnd={handleMouseUp}
+          onContextMenu={(e) => e.preventDefault()}
           disabled={pending || !user}
+          style={{ WebkitTouchCallout: "none" }}
           className={cn(
-            "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition-colors",
+            "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition-colors select-none",
             isActive
               ? "bg-paw-pink/15 text-paw-pink font-semibold"
               : "text-muted-foreground hover:bg-paw-pink/10 hover:text-paw-pink"
@@ -170,8 +172,10 @@ export function ReactionsButton({
                   whileTap={{ scale: 0.9 }}
                   transition={{ type: "spring", stiffness: 700, damping: 18 }}
                   onClick={() => applyReaction(value)}
+                  onContextMenu={(e) => e.preventDefault()}
+                  style={{ WebkitTouchCallout: "none" }}
                   className={cn(
-                    "flex flex-col items-center gap-0.5 rounded-xl px-1.5 py-1 transition-colors",
+                    "flex flex-col items-center gap-0.5 rounded-xl px-1.5 py-1 transition-colors select-none",
                     current === value ? "bg-paw-pink/20" : "hover:bg-secondary"
                   )}
                   aria-label={label}

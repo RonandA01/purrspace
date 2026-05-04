@@ -23,6 +23,8 @@ export interface Post {
   comment_count: number;
   share_count: number;
   shared_from_id: string | null;
+  archived: boolean;
+  archived_at: string | null;
   created_at: string;
   author?: Profile;
   shared_from?: Post | null;
@@ -45,6 +47,7 @@ export interface Comment {
   author_id: string;
   parent_id: string | null;
   content: string;
+  gif_url: string | null;
   created_at: string;
   author?: Profile;
   replies?: Comment[];

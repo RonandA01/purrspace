@@ -5,7 +5,7 @@ import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ChatCircle, ArrowsCounterClockwise, DotsThree, Trash } from "@phosphor-icons/react";
+import { ChatCircle, ArrowsCounterClockwise, DotsThree, Archive } from "@phosphor-icons/react";
 import { ReactionsButton } from "./ReactionsButton";
 import { CommentsSection } from "./CommentsSection";
 import { ShareButton } from "./ShareButton";
@@ -53,7 +53,7 @@ export function CatPost({ post, className, alwaysShowComments = false, highlight
   const [pawmarked, setPawmarked] = useState(post.pawmarked_by_me ?? false);
   const [showComments, setShowComments] = useState(alwaysShowComments);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const [archiving, setArchiving] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const isOwn = Boolean(user && user.id === post.author_id);
@@ -68,17 +68,20 @@ export function CatPost({ post, className, alwaysShowComments = false, highlight
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const handleDelete = async () => {
-    if (!user || deleting) return;
-    setDeleting(true);
+  const handleArchive = async () => {
+    if (!user || archiving) return;
+    setArchiving(true);
     setMenuOpen(false);
-    const { error } = await supabase.from("posts").delete().eq("id", post.id);
+    const { error } = await supabase
+      .from("posts")
+      .update({ archived: true, archived_at: new Date().toISOString() })
+      .eq("id", post.id);
     if (error) {
-      toast.error("Failed to delete post.");
-      setDeleting(false);
+      toast.error("Failed to archive post.");
+      setArchiving(false);
     } else {
       window.dispatchEvent(new CustomEvent("purrspace:remove-post", { detail: { id: post.id } }));
-      toast("Post deleted 🗑️");
+      toast("Post archived 📦");
     }
   };
 
@@ -159,12 +162,12 @@ export function CatPost({ post, className, alwaysShowComments = false, highlight
                     className="absolute right-0 top-8 z-50 min-w-[140px] rounded-2xl border border-border/60 bg-card shadow-lg overflow-hidden"
                   >
                     <button
-                      onClick={handleDelete}
-                      disabled={deleting}
-                      className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors disabled:opacity-50"
+                      onClick={handleArchive}
+                      disabled={archiving}
+                      className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-muted-foreground hover:bg-secondary transition-colors disabled:opacity-50"
                     >
-                      <Trash size={14} weight="duotone" />
-                      {deleting ? "Deleting…" : "Delete post"}
+                      <Archive size={14} weight="duotone" />
+                      {archiving ? "Archiving…" : "Archive post"}
                     </button>
                   </motion.div>
                 )}

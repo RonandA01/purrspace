@@ -10,6 +10,10 @@ import {
   X,
   Check,
   ChatTeardropText,
+  Archive,
+  ArrowCounterClockwise,
+  Trash,
+  CaretDown,
 } from "@phosphor-icons/react";
 import { useRouter } from "next/navigation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -48,6 +52,8 @@ export function ProfileView({ username }: ProfileViewProps) {
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
   const [isFollowing, setIsFollowing] = useState(false);
+  const [archivedPosts, setArchivedPosts] = useState<Post[]>([]);
+  const [showArchived, setShowArchived] = useState(false);
 
   // Edit form state
   const [editName, setEditName] = useState("");
@@ -121,10 +127,13 @@ export function ProfileView({ username }: ProfileViewProps) {
     let mounted = true;
     setPostsLoading(true);
 
+    const isOwn = Boolean(user && profile.id === user.id);
+
     supabase
       .from("posts")
       .select("*, author:profiles(*), shared_from:posts!shared_from_id(*, author:profiles(*))")
       .eq("author_id", profile.id)
+      .eq("archived", false)
       .order("created_at", { ascending: false })
       .limit(20)
       .then(async ({ data }) => {
@@ -154,6 +163,21 @@ export function ProfileView({ username }: ProfileViewProps) {
         );
         setPostsLoading(false);
       });
+
+    // Load archived posts — own profile only
+    if (isOwn) {
+      supabase
+        .from("posts")
+        .select("*, author:profiles(*), shared_from:posts!shared_from_id(*, author:profiles(*))")
+        .eq("author_id", profile.id)
+        .eq("archived", true)
+        .order("archived_at", { ascending: false })
+        .limit(50)
+        .then(({ data }) => {
+          if (!mounted || !data) return;
+          setArchivedPosts(data.map((p) => ({ ...p, liked_by_me: false, my_reaction: null, pawmarked_by_me: false })));
+        });
+    }
 
     return () => { mounted = false; };
   }, [profile, user]);
@@ -269,6 +293,35 @@ export function ProfileView({ username }: ProfileViewProps) {
       await supabase.from("follows").insert({ follower_id: user.id, following_id: profile.id }).then((r) => r);
       setIsFollowing(true);
       setFollowersCount((c) => c + 1);
+    }
+  };
+
+  const handleRestorePost = async (postId: string) => {
+    if (!user) return;
+    const { error } = await supabase
+      .from("posts")
+      .update({ archived: false, archived_at: null })
+      .eq("id", postId);
+    if (!error) {
+      const restored = archivedPosts.find((p) => p.id === postId);
+      setArchivedPosts((prev) => prev.filter((p) => p.id !== postId));
+      if (restored) {
+        setPosts((prev) => [{ ...restored, archived: false, archived_at: null }, ...prev]);
+      }
+      toast("Post restored 🐾");
+    } else {
+      toast.error("Failed to restore post.");
+    }
+  };
+
+  const handlePermDeletePost = async (postId: string) => {
+    if (!user) return;
+    const { error } = await supabase.from("posts").delete().eq("id", postId);
+    if (!error) {
+      setArchivedPosts((prev) => prev.filter((p) => p.id !== postId));
+      toast("Post permanently deleted 🗑️");
+    } else {
+      toast.error("Failed to delete post.");
     }
   };
 
@@ -440,6 +493,79 @@ export function ProfileView({ username }: ProfileViewProps) {
           {posts.map((post) => (
             <CatPost key={post.id} post={post} />
           ))}
+        </div>
+      )}
+
+      {/* Archived posts — own profile only */}
+      {isOwnProfile && archivedPosts.length > 0 && (
+        <div className="space-y-3 pt-2">
+          <button
+            onClick={() => setShowArchived((v) => !v)}
+            className="flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors w-full"
+          >
+            <Archive size={15} weight="duotone" />
+            Archived posts ({archivedPosts.length})
+            <motion.span
+              animate={{ rotate: showArchived ? 180 : 0 }}
+              transition={{ type: "spring", stiffness: 400, damping: 28 }}
+              className="ml-auto"
+            >
+              <CaretDown size={14} />
+            </motion.span>
+          </button>
+
+          <AnimatePresence>
+            {showArchived && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ type: "spring", stiffness: 380, damping: 34 }}
+                className="space-y-3 overflow-hidden"
+              >
+                {archivedPosts.map((post) => (
+                  <div
+                    key={post.id}
+                    className="rounded-3xl border border-border/60 bg-card/70 px-5 py-4 space-y-2 opacity-75"
+                  >
+                    {/* Mini author row */}
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs text-muted-foreground">
+                        Archived {post.archived_at ? new Date(post.archived_at).toLocaleDateString() : ""}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <motion.button
+                          whileTap={{ scale: 0.93 }}
+                          onClick={() => handleRestorePost(post.id)}
+                          className="flex items-center gap-1 rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold hover:bg-secondary transition-colors"
+                        >
+                          <ArrowCounterClockwise size={11} weight="bold" />
+                          Restore
+                        </motion.button>
+                        <motion.button
+                          whileTap={{ scale: 0.93 }}
+                          onClick={() => handlePermDeletePost(post.id)}
+                          className="flex items-center gap-1 rounded-full border border-red-200 dark:border-red-800/60 px-2.5 py-1 text-[11px] font-semibold text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                        >
+                          <Trash size={11} weight="duotone" />
+                          Delete
+                        </motion.button>
+                      </div>
+                    </div>
+                    <p className="text-sm leading-relaxed text-foreground/80 whitespace-pre-wrap line-clamp-3">
+                      {post.content}
+                    </p>
+                    {post.image_url && (
+                      <div className="rounded-xl overflow-hidden border border-border/40">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={post.image_url} alt="" className="w-full object-cover max-h-40" loading="lazy" />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       )}
 

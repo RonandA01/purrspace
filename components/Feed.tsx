@@ -17,6 +17,7 @@ async function fetchPosts(
   let query = supabase
     .from("posts")
     .select("*, author:profiles(*), shared_from:posts!shared_from_id(*, author:profiles(*))")
+    .eq("archived", false)
     .order("created_at", { ascending: false })
     .limit(PAGE_SIZE);
 

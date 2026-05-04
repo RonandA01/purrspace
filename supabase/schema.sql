@@ -46,6 +46,8 @@ create table if not exists public.posts (
 alter table public.posts add column if not exists comment_count  integer not null default 0;
 alter table public.posts add column if not exists share_count    integer not null default 0;
 alter table public.posts add column if not exists shared_from_id uuid references public.posts(id) on delete set null;
+alter table public.posts add column if not exists archived       boolean not null default false;
+alter table public.posts add column if not exists archived_at    timestamptz;
 
 -- ── 3. LIKES (Reactions) ────────────────────────────────────
 -- reaction_emoji stores reaction value: like | haha | love | wow | sad | angry
@@ -74,9 +76,12 @@ create table if not exists public.comments (
   post_id    uuid not null references public.posts(id) on delete cascade,
   author_id  uuid not null references public.profiles(id) on delete cascade,
   parent_id  uuid references public.comments(id) on delete cascade,
-  content    text not null check (char_length(content) <= 280),
+  content    text not null default '' check (char_length(content) <= 280),
+  gif_url    text,
   created_at timestamptz not null default now()
 );
+
+alter table public.comments add column if not exists gif_url text;
 
 -- ── 5. PAWMARKS (Bookmarks) ──────────────────────────────────
 create table if not exists public.pawmarks (
