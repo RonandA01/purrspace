@@ -23,6 +23,12 @@ export function ComposeModal() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [visibility, setVisibility] = useState<"public" | "followers_only">("public");
   const [showVisMenu, setShowVisMenu] = useState(false);
+
+  // Load last-used visibility from localStorage
+  useEffect(() => {
+    const stored = localStorage.getItem("ps-last-visibility") as "public" | "followers_only" | null;
+    if (stored) setVisibility(stored);
+  }, []);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mouseDownOnBackdrop = useRef(false);
@@ -47,7 +53,13 @@ export function ComposeModal() {
     setContent("");
     setImageFile(null);
     setImagePreview(null);
-    setVisibility("public");
+    // Keep visibility as-is — persisted for next compose
+    setShowVisMenu(false);
+  };
+
+  const handleVisibilityChange = (v: "public" | "followers_only") => {
+    setVisibility(v);
+    localStorage.setItem("ps-last-visibility", v);
     setShowVisMenu(false);
   };
 
@@ -195,7 +207,7 @@ export function ComposeModal() {
                   ].map((opt) => (
                     <button
                       key={opt.value}
-                      onClick={() => { setVisibility(opt.value); setShowVisMenu(false); }}
+                      onClick={() => handleVisibilityChange(opt.value)}
                       className={`flex items-start gap-2 w-full px-3 py-2.5 text-left hover:bg-secondary transition-colors ${visibility === opt.value ? "text-paw-pink" : "text-foreground"}`}
                     >
                       <span className="mt-0.5">{opt.icon}</span>

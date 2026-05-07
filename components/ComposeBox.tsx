@@ -1,8 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Image as ImageIcon, X } from "@phosphor-icons/react";
+import { Image as ImageIcon, X, Globe, Lock, CaretDown } from "@phosphor-icons/react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PawPrintIcon } from "./PawPrintIcon";
 import { supabase } from "@/lib/supabase";
@@ -29,7 +29,21 @@ export function ComposeBox() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [visibility, setVisibility] = useState<"public" | "followers_only">("public");
+  const [showVisMenu, setShowVisMenu] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Load last-used visibility from localStorage
+  useEffect(() => {
+    const stored = localStorage.getItem("ps-last-visibility") as "public" | "followers_only" | null;
+    if (stored) setVisibility(stored);
+  }, []);
+
+  const handleVisibilityChange = (v: "public" | "followers_only") => {
+    setVisibility(v);
+    localStorage.setItem("ps-last-visibility", v);
+    setShowVisMenu(false);
+  };
 
   const remaining = MAX_CHARS - content.length;
   const overLimit = remaining < 0;
@@ -66,7 +80,7 @@ export function ComposeBox() {
       shared_from_id: null,
       archived: false,
       archived_at: null,
-      visibility: "public" as const,
+      visibility,
       created_at: new Date().toISOString(),
       author: profile ?? undefined,
       liked_by_me: false,
@@ -78,6 +92,7 @@ export function ComposeBox() {
     // Clear form immediately so the user can type the next post
     const capturedContent = content.trim();
     const capturedImageFile = imageFile;
+    const capturedVisibility = visibility;
     setContent("");
     removeImage();
 
@@ -94,7 +109,7 @@ export function ComposeBox() {
       const { error: insertError, data } = await withTimeout(
         supabase
           .from("posts")
-          .insert({ author_id: user.id, content: capturedContent, image_url })
+          .insert({ author_id: user.id, content: capturedContent, image_url, visibility: capturedVisibility })
           .select("*, author:profiles(*)")
           .single()
           .then((r) => r),
@@ -189,6 +204,48 @@ export function ComposeBox() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Visibility selector */}
+      <div className="relative">
+        <button
+          onClick={() => setShowVisMenu((v) => !v)}
+          disabled={!user || submitting}
+          className="flex items-center gap-1.5 rounded-full border border-border/50 bg-secondary/50 px-3 py-1 text-xs font-semibold text-muted-foreground hover:text-foreground hover:border-paw-pink/40 transition-colors disabled:opacity-40"
+        >
+          {visibility === "public"
+            ? <><Globe size={12} className="text-paw-pink" /> 🌍 Public</>
+            : <><Lock size={12} className="text-paw-pink" /> 🐾 Followers Only</>}
+          <CaretDown size={10} className={`transition-transform ${showVisMenu ? "rotate-180" : ""}`} />
+        </button>
+        <AnimatePresence>
+          {showVisMenu && (
+            <motion.div
+              initial={{ opacity: 0, y: 4, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 4, scale: 0.96 }}
+              transition={{ type: "spring", stiffness: 600, damping: 28 }}
+              className="absolute left-0 top-full mt-1 z-20 rounded-2xl border border-border/60 bg-card shadow-lg overflow-hidden min-w-[170px]"
+            >
+              {[
+                { value: "public" as const, icon: "🌍", label: "Public", desc: "Anyone can see" },
+                { value: "followers_only" as const, icon: "🐾", label: "Followers Only", desc: "Only followers" },
+              ].map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => handleVisibilityChange(opt.value)}
+                  className={`flex items-start gap-2 w-full px-3 py-2.5 text-left hover:bg-secondary transition-colors ${visibility === opt.value ? "text-paw-pink" : "text-foreground"}`}
+                >
+                  <span className="mt-0.5 text-sm">{opt.icon}</span>
+                  <div>
+                    <p className="text-xs font-semibold">{opt.label}</p>
+                    <p className="text-[10px] text-muted-foreground">{opt.desc}</p>
+                  </div>
+                </button>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
       <div className="flex items-center justify-between pt-1 border-t border-border/40">
         <div className="flex items-center gap-2">

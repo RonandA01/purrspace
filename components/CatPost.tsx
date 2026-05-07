@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ChatCircle, DotsThree, Archive } from "@phosphor-icons/react";
+import { ChatCircle, DotsThree, Archive, Globe, Lock } from "@phosphor-icons/react";
 import { ReactionsButton } from "./ReactionsButton";
 import { CommentsSection } from "./CommentsSection";
 import { ShareButton } from "./ShareButton";
@@ -53,6 +53,9 @@ export function CatPost({ post, className, alwaysShowComments = false, highlight
   const [showComments, setShowComments] = useState(alwaysShowComments);
   const [menuOpen, setMenuOpen] = useState(false);
   const [archiving, setArchiving] = useState(false);
+  const [visibility, setVisibility] = useState<"public" | "followers_only">(post.visibility ?? "public");
+  const [showVisPicker, setShowVisPicker] = useState(false);
+  const [changingVis, setChangingVis] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const isOwn = Boolean(user && user.id === post.author_id);
@@ -82,6 +85,25 @@ export function CatPost({ post, className, alwaysShowComments = false, highlight
       window.dispatchEvent(new CustomEvent("purrspace:remove-post", { detail: { id: post.id } }));
       toast("Post archived 📦");
     }
+  };
+
+  const handleVisibilityChange = async (newVis: "public" | "followers_only") => {
+    if (changingVis) return;
+    setChangingVis(true);
+    setShowVisPicker(false);
+    const prev = visibility;
+    setVisibility(newVis); // optimistic
+    const { error } = await supabase
+      .from("posts")
+      .update({ visibility: newVis })
+      .eq("id", post.id);
+    if (error) {
+      toast.error("Failed to update visibility.");
+      setVisibility(prev);
+    } else {
+      toast(newVis === "public" ? "🌍 Now visible to everyone" : "🐾 Now visible to followers only");
+    }
+    setChangingVis(false);
   };
 
   const handleReactionChange = (emoji: string | null, delta: number) => {
@@ -155,9 +177,20 @@ export function CatPost({ post, className, alwaysShowComments = false, highlight
                   {displayAuthor?.display_name ?? "Anonymous"}
                 </p>
               </Link>
-              {post.visibility === "followers_only" && (
-                <span className="shrink-0 rounded-full bg-paw-pink-light border border-paw-pink/20 px-1.5 py-0.5 text-[9px] font-bold text-paw-pink uppercase tracking-wide">
+              {visibility === "followers_only" && (
+                <span
+                  title="Visible to followers only"
+                  className="shrink-0 rounded-full bg-paw-pink-light border border-paw-pink/20 px-1.5 py-0.5 text-[9px] font-bold text-paw-pink uppercase tracking-wide cursor-default"
+                >
                   🐾 Followers
+                </span>
+              )}
+              {isOwn && visibility === "public" && (
+                <span
+                  title="Visible to everyone"
+                  className="shrink-0 rounded-full bg-secondary border border-border/40 px-1.5 py-0.5 text-[9px] font-semibold text-muted-foreground uppercase tracking-wide cursor-default"
+                >
+                  🌍 Public
                 </span>
               )}
             </div>
@@ -188,6 +221,56 @@ export function CatPost({ post, className, alwaysShowComments = false, highlight
                     transition={{ type: "spring", stiffness: 600, damping: 28 }}
                     className="absolute right-0 top-8 z-50 min-w-[140px] rounded-2xl border border-border/60 bg-card shadow-lg overflow-hidden"
                   >
+                    {/* Change Visibility */}
+                    <button
+                      onClick={() => setShowVisPicker((v) => !v)}
+                      className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-muted-foreground hover:bg-secondary transition-colors"
+                    >
+                      {visibility === "public"
+                        ? <Globe size={14} weight="duotone" />
+                        : <Lock size={14} weight="duotone" />}
+                      Change Visibility
+                    </button>
+
+                    {/* Inline visibility picker */}
+                    <AnimatePresence>
+                      {showVisPicker && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="border-t border-border/40 overflow-hidden"
+                        >
+                          {[
+                            { value: "public" as const, icon: "🌍", label: "Public", desc: "Anyone can see" },
+                            { value: "followers_only" as const, icon: "🐾", label: "Followers Only", desc: "Only followers" },
+                          ].map((opt) => (
+                            <button
+                              key={opt.value}
+                              onClick={() => handleVisibilityChange(opt.value)}
+                              disabled={changingVis || visibility === opt.value}
+                              className={`flex items-center gap-2.5 w-full px-5 py-2 text-sm transition-colors disabled:opacity-50 ${
+                                visibility === opt.value
+                                  ? "text-paw-pink bg-paw-pink/5"
+                                  : "text-muted-foreground hover:bg-secondary"
+                              }`}
+                            >
+                              <span>{opt.icon}</span>
+                              <div className="text-left">
+                                <p className="text-xs font-semibold">{opt.label}</p>
+                                <p className="text-[10px] opacity-70">{opt.desc}</p>
+                              </div>
+                              {visibility === opt.value && (
+                                <span className="ml-auto text-[10px] font-bold text-paw-pink">Current</span>
+                              )}
+                            </button>
+                          ))}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    <div className="border-t border-border/40" />
+
                     <button
                       onClick={handleArchive}
                       disabled={archiving}
