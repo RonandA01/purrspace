@@ -12,6 +12,7 @@ import {
   User,
   PlusCircle,
   SignOut,
+  GearSix,
 } from "@phosphor-icons/react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -23,11 +24,12 @@ import { supabase } from "@/lib/supabase";
 import { useSession } from "@/hooks/useSession";
 
 const navItems = [
-  { label: "Home",      href: "/",         icon: House },
-  { label: "Explore",   href: "/explore",  icon: MagnifyingGlass },
-  { label: "Purr-Mail", href: "/messages", icon: Envelope },
-  { label: "Saved",     href: "/saved",    icon: BookmarkSimple },
-  { label: "Profile",   href: "/profile",  icon: User },
+  { label: "Home",      href: "/",          icon: House },
+  { label: "Explore",   href: "/explore",   icon: MagnifyingGlass },
+  { label: "Whispurrs", href: "/messages",  icon: Envelope },
+  { label: "Pawmarks",  href: "/saved",     icon: BookmarkSimple },
+  { label: "Profile",   href: "/profile",   icon: User },
+  { label: "Settings",  href: "/settings",  icon: GearSix },
 ];
 
 export function Sidebar() {

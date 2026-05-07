@@ -1,322 +1,228 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-  BookmarkSimple,
-  Archive,
-  ArrowCounterClockwise,
-  Trash,
-} from "@phosphor-icons/react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { CatPost } from "./CatPost";
-import { PostSkeleton } from "./PostSkeleton";
+import { motion } from "framer-motion";
+import { useRouter } from "next/navigation";
+import { Moon, Sun, Lock, Globe, Bell, User, SignOut, Warning, Pencil } from "@phosphor-icons/react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { useSession } from "@/hooks/useSession";
+import { useDarkMode } from "@/hooks/useDarkMode";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import type { Post } from "@/types";
 
-function initials(name?: string | null) {
-  return name?.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2) ?? "??";
-}
+// ── Toggle component ──────────────────────────────────────────────────────────
 
-function timeAgo(dateStr: string | null) {
-  if (!dateStr) return "";
-  return new Date(dateStr).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
-// ── Saved tab ────────────────────────────────────────────────────────────────
-
-function SavedTab() {
-  const { user } = useSession();
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!user) { setLoading(false); return; }
-
-    supabase
-      .from("pawmarks")
-      .select(
-        "post_id, posts:post_id(*, author:profiles(*), shared_from:posts!shared_from_id(*, author:profiles(*)))"
-      )
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .then(async ({ data }) => {
-        if (!data) { setLoading(false); return; }
-
-        const rawPosts = data
-          .map((r: { posts: unknown }) => r.posts)
-          .filter(Boolean) as Post[];
-
-        const postIds = rawPosts.map((p) => p.id);
-        let reactionMap = new Map<string, string>();
-        if (postIds.length > 0) {
-          const { data: likes } = await supabase
-            .from("likes")
-            .select("post_id, reaction_emoji")
-            .eq("user_id", user.id)
-            .in("post_id", postIds);
-          for (const l of likes ?? []) reactionMap.set(l.post_id, l.reaction_emoji);
-        }
-
-        setPosts(
-          rawPosts.map((p) => ({
-            ...p,
-            liked_by_me: reactionMap.has(p.id),
-            my_reaction: reactionMap.get(p.id) ?? null,
-            pawmarked_by_me: true,
-          }))
-        );
-        setLoading(false);
-      });
-  }, [user]);
-
-  if (!user) {
-    return (
-      <div className="flex flex-col items-center gap-3 py-20 text-center text-muted-foreground">
-        <BookmarkSimple size={36} weight="duotone" />
-        <p className="text-sm">Sign in to see your saved posts.</p>
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className="space-y-4">
-        {[1, 2, 3].map((i) => <PostSkeleton key={i} />)}
-      </div>
-    );
-  }
-
-  if (posts.length === 0) {
-    return (
-      <div className="flex flex-col items-center gap-3 py-16 text-center text-muted-foreground">
-        <span className="text-4xl">🐾</span>
-        <p className="font-semibold">Nothing saved yet</p>
-        <p className="text-sm">Tap the bookmark icon on any post to save it here.</p>
-      </div>
-    );
-  }
-
+function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
-    <div className="space-y-4">
-      {posts.map((post) => (
-        <CatPost key={post.id} post={post} />
-      ))}
+    <button
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className={cn(
+        "relative h-6 w-11 rounded-full border-0 outline-none transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-paw-pink/60",
+        checked ? "bg-paw-pink" : "bg-border"
+      )}
+    >
+      <span className={cn(
+        "absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-all duration-200",
+        checked ? "left-[22px]" : "left-0.5"
+      )} />
+    </button>
+  );
+}
+
+// ── Settings group ────────────────────────────────────────────────────────────
+
+function SettingsGroup({ title, danger, children }: { title: string; danger?: boolean; children: React.ReactNode }) {
+  return (
+    <section className="rounded-2xl border border-border/60 bg-card shadow-sm overflow-hidden">
+      <div className={cn(
+        "px-4 py-3 border-b border-border/60 text-xs font-bold uppercase tracking-wider font-mono",
+        danger ? "text-red-500" : "text-muted-foreground"
+      )}>
+        {title}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function SettingsRow({
+  label, desc, control, onClick,
+}: {
+  label: string;
+  desc?: string;
+  control?: React.ReactNode;
+  onClick?: () => void;
+}) {
+  return (
+    <div
+      onClick={onClick}
+      className={cn(
+        "flex items-center gap-4 px-4 py-3.5 border-b border-border/40 last:border-0",
+        onClick && "cursor-pointer hover:bg-secondary/50 transition-colors"
+      )}
+    >
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-foreground">{label}</p>
+        {desc && <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{desc}</p>}
+      </div>
+      {control}
     </div>
   );
 }
 
-// ── Archived tab ─────────────────────────────────────────────────────────────
+// ── Main ─────────────────────────────────────────────────────────────────────
 
-function ArchivedTab() {
-  const { user } = useSession();
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [loading, setLoading] = useState(true);
+const NOTIF_KEYS = ["paws", "comments", "follows", "dms", "marketing"] as const;
+type NotifKey = typeof NOTIF_KEYS[number];
+const NOTIF_LABELS: Record<NotifKey, string> = {
+  paws:      "Paws on my purrs",
+  comments:  "New purrlies (comments)",
+  follows:   "New followers",
+  dms:       "Whispurr messages",
+  marketing: "Product updates & treats",
+};
 
-  useEffect(() => {
-    if (!user) { setLoading(false); return; }
-
-    supabase
-      .from("posts")
-      .select("*, author:profiles(*), shared_from:posts!shared_from_id(*, author:profiles(*))")
-      .eq("author_id", user.id)
-      .eq("archived", true)
-      .order("archived_at", { ascending: false })
-      .limit(50)
-      .then(({ data }) => {
-        setPosts(
-          (data ?? []).map((p) => ({
-            ...p,
-            liked_by_me: false,
-            my_reaction: null,
-            pawmarked_by_me: false,
-          }))
-        );
-        setLoading(false);
-      });
-  }, [user]);
-
-  const handleRestore = async (postId: string) => {
-    const { error } = await supabase
-      .from("posts")
-      .update({ archived: false, archived_at: null })
-      .eq("id", postId);
-    if (error) { toast.error("Failed to restore post."); return; }
-    setPosts((prev) => prev.filter((p) => p.id !== postId));
-    toast("Post restored to your profile 🐾");
-  };
-
-  const handleDelete = async (postId: string) => {
-    const { error } = await supabase.from("posts").delete().eq("id", postId);
-    if (error) { toast.error("Failed to delete post."); return; }
-    setPosts((prev) => prev.filter((p) => p.id !== postId));
-    toast("Post permanently deleted 🗑️");
-  };
-
-  if (!user) {
-    return (
-      <div className="flex flex-col items-center gap-3 py-20 text-center text-muted-foreground">
-        <Archive size={36} weight="duotone" />
-        <p className="text-sm">Sign in to manage your archived posts.</p>
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className="space-y-3">
-        {[1, 2, 3].map((i) => <PostSkeleton key={i} />)}
-      </div>
-    );
-  }
-
-  if (posts.length === 0) {
-    return (
-      <div className="flex flex-col items-center gap-3 py-16 text-center text-muted-foreground">
-        <span className="text-4xl">📦</span>
-        <p className="font-semibold">No archived posts</p>
-        <p className="text-sm">Posts you archive will appear here.</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-3">
-      {posts.map((post) => (
-        <motion.div
-          key={post.id}
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, height: 0 }}
-          transition={{ type: "spring", stiffness: 380, damping: 32 }}
-          className="rounded-3xl border border-border/60 bg-card shadow-sm overflow-hidden"
-        >
-          {/* Author row */}
-          <div className="flex items-center gap-3 px-5 pt-4 pb-2">
-            <Avatar className="h-8 w-8 shrink-0">
-              <AvatarImage src={post.author?.avatar_url ?? undefined} />
-              <AvatarFallback className="bg-paw-pink-light text-paw-pink text-xs font-bold">
-                {initials(post.author?.display_name)}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold leading-tight truncate">
-                {post.author?.display_name ?? "You"}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Archived {timeAgo(post.archived_at)}
-              </p>
-            </div>
-          </div>
-
-          {/* Content */}
-          <div className="px-5 pb-3 space-y-2">
-            <p className="text-sm leading-relaxed text-foreground/85 whitespace-pre-wrap line-clamp-4">
-              {post.content}
-            </p>
-            {post.image_url && (
-              <div className="rounded-2xl overflow-hidden border border-border/40">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={post.image_url}
-                  alt=""
-                  className="w-full object-cover max-h-48"
-                  loading="lazy"
-                />
-              </div>
-            )}
-          </div>
-
-          {/* Action bar */}
-          <div className="flex items-center gap-2 px-5 py-3 border-t border-border/40 bg-secondary/30">
-            <motion.button
-              whileTap={{ scale: 0.94 }}
-              onClick={() => handleRestore(post.id)}
-              className="flex items-center gap-1.5 rounded-full border border-border px-3.5 py-1.5 text-xs font-semibold hover:bg-secondary transition-colors"
-            >
-              <ArrowCounterClockwise size={13} weight="bold" />
-              Restore
-            </motion.button>
-
-            <motion.button
-              whileTap={{ scale: 0.94 }}
-              onClick={() => handleDelete(post.id)}
-              className="flex items-center gap-1.5 rounded-full border border-red-200 dark:border-red-800/50 px-3.5 py-1.5 text-xs font-semibold text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
-            >
-              <Trash size={13} weight="duotone" />
-              Delete permanently
-            </motion.button>
-          </div>
-        </motion.div>
-      ))}
-    </div>
-  );
+function loadNotifPrefs(): Record<NotifKey, boolean> {
+  try {
+    const raw = localStorage.getItem("ps-notif-prefs");
+    if (raw) return { paws: true, comments: true, follows: true, dms: true, marketing: false, ...JSON.parse(raw) };
+  } catch { /* ignore */ }
+  return { paws: true, comments: true, follows: true, dms: true, marketing: false };
 }
-
-// ── Main SettingsView ─────────────────────────────────────────────────────────
-
-type Tab = "saved" | "archived";
-
-const TABS: { id: Tab; label: string; icon: typeof Archive }[] = [
-  { id: "saved",    label: "Saved",    icon: BookmarkSimple },
-  { id: "archived", label: "Archived", icon: Archive },
-];
 
 export function SettingsView() {
-  const [tab, setTab] = useState<Tab>("saved");
+  const { user, profile } = useSession();
+  const router = useRouter();
+  const { dark, setDark } = useDarkMode();
+
+  const [notifs, setNotifs] = useState<Record<NotifKey, boolean>>(loadNotifPrefs);
+  const [isPrivate, setIsPrivate] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (profile) setIsPrivate(profile.is_private ?? false);
+  }, [profile]);
+
+  const toggleNotif = (key: NotifKey, val: boolean) => {
+    const next = { ...notifs, [key]: val };
+    setNotifs(next);
+    try { localStorage.setItem("ps-notif-prefs", JSON.stringify(next)); } catch { /* ignore */ }
+  };
+
+  const togglePrivate = async (val: boolean) => {
+    if (!user) return;
+    setIsPrivate(val);
+    const { error } = await supabase.from("profiles").update({ is_private: val }).eq("id", user.id);
+    if (error) {
+      setIsPrivate(!val);
+      toast.error("Failed to update privacy setting");
+    } else {
+      toast(val ? "Account set to private 🔒" : "Account set to public 🌐");
+    }
+  };
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    router.push("/login");
+    router.refresh();
+  };
 
   return (
     <div className="space-y-5">
       <h1 className="text-lg font-bold">Settings ⚙️</h1>
 
-      {/* Tab switcher */}
-      <div className="flex rounded-2xl border border-border/60 bg-secondary/40 p-1 gap-1">
-        {TABS.map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            onClick={() => setTab(id)}
-            className="relative flex-1 flex items-center justify-center gap-2 rounded-xl py-2 text-sm font-semibold transition-colors"
-          >
-            {tab === id && (
-              <motion.span
-                layoutId="settings-tab-pill"
-                className="absolute inset-0 rounded-xl bg-card shadow-sm"
-                transition={{ type: "spring", stiffness: 500, damping: 34 }}
-              />
-            )}
-            <span className="relative flex items-center gap-1.5">
-              <Icon
-                size={15}
-                weight={tab === id ? "fill" : "duotone"}
-                className={tab === id ? "text-paw-pink" : "text-muted-foreground"}
-              />
-              <span className={tab === id ? "text-foreground" : "text-muted-foreground"}>
-                {label}
-              </span>
+      {/* Appearance */}
+      <SettingsGroup title="Appearance">
+        <SettingsRow
+          label="Night-cat mode"
+          desc="Easier on tired eyes — yours and your cat's."
+          control={<Toggle checked={dark} onChange={setDark} />}
+        />
+        <SettingsRow
+          label={dark ? "Dark mode is on" : "Light mode is on"}
+          desc="Changes take effect immediately across all pages."
+          control={
+            <span className="text-muted-foreground">
+              {dark ? <Moon size={18} weight="fill" className="text-paw-pink" /> : <Sun size={18} weight="fill" className="text-paw-pink" />}
             </span>
-          </button>
-        ))}
-      </div>
+          }
+        />
+      </SettingsGroup>
 
-      {/* Tab content */}
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={tab}
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -6 }}
-          transition={{ duration: 0.15 }}
-        >
-          {tab === "saved"    && <SavedTab />}
-          {tab === "archived" && <ArchivedTab />}
-        </motion.div>
-      </AnimatePresence>
+      {/* Notifications */}
+      <SettingsGroup title="Notifications">
+        {NOTIF_KEYS.map((key) => (
+          <SettingsRow
+            key={key}
+            label={NOTIF_LABELS[key]}
+            control={<Toggle checked={notifs[key]} onChange={(v) => toggleNotif(key, v)} />}
+          />
+        ))}
+      </SettingsGroup>
+
+      {/* Privacy */}
+      <SettingsGroup title="Privacy">
+        <SettingsRow
+          label="Private account"
+          desc="Only approved followers can see your purrs."
+          control={<Toggle checked={isPrivate} onChange={togglePrivate} />}
+        />
+        <SettingsRow
+          label="Account visibility"
+          control={
+            <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+              {isPrivate
+                ? <><Lock size={14} className="text-paw-pink" /> Private</>
+                : <><Globe size={14} className="text-paw-pink" /> Public</>}
+            </span>
+          }
+        />
+      </SettingsGroup>
+
+      {/* Account */}
+      <SettingsGroup title="Account">
+        <SettingsRow
+          label="Edit profile"
+          desc="Update your display name, bio, avatar, and cover."
+          control={<Pencil size={16} className="text-muted-foreground" />}
+          onClick={() => router.push("/profile")}
+        />
+        <SettingsRow
+          label="Saved posts"
+          desc="Your pawmarked posts and archive."
+          control={<span className="text-xs text-muted-foreground">→</span>}
+          onClick={() => router.push("/saved")}
+        />
+        <SettingsRow
+          label="Sign out"
+          control={<SignOut size={16} className="text-muted-foreground" />}
+          onClick={handleSignOut}
+        />
+      </SettingsGroup>
+
+      {/* Danger zone */}
+      <SettingsGroup title="Danger zone" danger>
+        <SettingsRow
+          label="Delete account"
+          desc="This cannot be undone. All your purrs and data will be permanently removed."
+          control={
+            <button
+              onClick={() => toast.error("Please contact support to delete your account.")}
+              className="shrink-0 rounded-full border border-red-200 dark:border-red-800/50 px-3 py-1 text-xs font-semibold text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+            >
+              Delete
+            </button>
+          }
+        />
+      </SettingsGroup>
+
+      {/* Footer */}
+      <p className="text-center text-[11px] text-muted-foreground/60 leading-relaxed pb-2">
+        PurrSpace · Made with 🐾 ·{" "}
+        <Link href="/terms" className="hover:text-paw-pink transition-colors">Privacy &amp; Terms</Link>
+      </p>
     </div>
   );
 }

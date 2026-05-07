@@ -1,10 +1,26 @@
 "use client";
 
+import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { SessionProvider, useSession } from "./SessionProvider";
 import { ComposeModal } from "./ComposeModal";
 import { BottomNav } from "./BottomNav";
 import { TopNav } from "./TopNav";
+
+/** Applies the stored dark-mode preference before the first paint */
+function DarkModeInit() {
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("ps-dark");
+      const isDark =
+        stored !== null
+          ? stored === "true"
+          : window.matchMedia("(prefers-color-scheme: dark)").matches;
+      document.documentElement.classList.toggle("dark", isDark);
+    } catch { /* ignore */ }
+  }, []);
+  return null;
+}
 
 /** Routes where nav chrome and body offsets should never appear */
 const AUTH_PATHS = ["/login", "/auth"];
@@ -46,6 +62,7 @@ function ContentWrapper({ children }: { children: React.ReactNode }) {
 export function ClientLayout({ children }: { children: React.ReactNode }) {
   return (
     <SessionProvider>
+      <DarkModeInit />
       <NavGuard />
       <ContentWrapper>{children}</ContentWrapper>
       <ComposeModal />

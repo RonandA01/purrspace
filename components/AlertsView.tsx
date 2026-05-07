@@ -59,11 +59,31 @@ function notificationHref(n: import("@/types").Notification): string {
   return "#";
 }
 
+type FilterId = "all" | "reaction" | "comment" | "follow" | "mention";
+
+const FILTERS: { id: FilterId; label: string }[] = [
+  { id: "all",      label: "All" },
+  { id: "reaction", label: "Paws" },
+  { id: "comment",  label: "Purrlies" },
+  { id: "follow",   label: "Follows" },
+  { id: "mention",  label: "Mentions" },
+];
+
+function matchesFilter(n: Notification, filter: FilterId): boolean {
+  if (filter === "all") return true;
+  if (filter === "reaction") return n.type === "reaction" || n.type === "comment_reaction" || n.type === "like";
+  if (filter === "comment")  return n.type === "comment" || n.type === "reply";
+  if (filter === "follow")   return n.type === "follow";
+  if (filter === "mention")  return n.type === "mention";
+  return true;
+}
+
 export function AlertsView() {
   const { user, loading: sessionLoading } = useSession();
   const router = useRouter();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<FilterId>("all");
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   useEffect(() => {
@@ -128,6 +148,7 @@ export function AlertsView() {
   };
 
   const unreadCount = notifications.filter((n) => !n.read).length;
+  const filtered = notifications.filter((n) => matchesFilter(n, filter));
 
   if (!user) {
     return (
@@ -142,7 +163,7 @@ export function AlertsView() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <h1 className="text-lg font-bold">Whiskers 🔔</h1>
+          <h1 className="text-lg font-bold">Meowtifications 🔔</h1>
           {unreadCount > 0 && (
             <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-paw-pink px-1.5 text-[10px] font-bold text-white">
               {unreadCount}
@@ -159,6 +180,24 @@ export function AlertsView() {
         )}
       </div>
 
+      {/* Filter tabs */}
+      <div className="flex gap-2 flex-wrap">
+        {FILTERS.map((f) => (
+          <button
+            key={f.id}
+            onClick={() => setFilter(f.id)}
+            className={cn(
+              "rounded-full px-3.5 py-1 text-xs font-semibold transition-colors border",
+              filter === f.id
+                ? "bg-paw-pink text-white border-paw-pink"
+                : "bg-card text-muted-foreground border-border/60 hover:border-paw-pink/40 hover:text-foreground"
+            )}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+
       {loading ? (
         <div className="space-y-2">
           {[1, 2, 3, 4, 5].map((i) => (
@@ -171,20 +210,26 @@ export function AlertsView() {
             </div>
           ))}
         </div>
-      ) : notifications.length === 0 ? (
+      ) : filtered.length === 0 ? (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           className="flex flex-col items-center gap-3 py-16 text-center text-muted-foreground"
         >
           <span className="text-4xl">😴</span>
-          <p className="font-semibold">All quiet on the whisker front</p>
-          <p className="text-sm">Notifications will appear here when someone interacts with you.</p>
+          <p className="font-semibold">
+            {filter === "all" ? "All quiet on the whisker front" : `No ${FILTERS.find((f) => f.id === filter)?.label.toLowerCase()} yet`}
+          </p>
+          <p className="text-sm">
+            {filter === "all"
+              ? "Notifications will appear here when someone interacts with you."
+              : "Try a different filter or check back later."}
+          </p>
         </motion.div>
       ) : (
         <AnimatePresence>
           <div className="space-y-2">
-            {notifications.map((n) => (
+            {filtered.map((n) => (
               <motion.div
                 key={n.id}
                 initial={{ opacity: 0, x: -8 }}
