@@ -4,11 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bell } from "@phosphor-icons/react";
+import { Bell, UserPlus, Check, X } from "@phosphor-icons/react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { supabase } from "@/lib/supabase";
 import { useSession } from "@/hooks/useSession";
-import type { Notification } from "@/types";
+import { toast } from "sonner";
+import type { Notification, FollowRequest } from "@/types";
 import { cn } from "@/lib/utils";
 
 const TYPE_ICON: Record<Notification["type"], string> = {
@@ -16,6 +17,7 @@ const TYPE_ICON: Record<Notification["type"], string> = {
   reaction:         "🐾",
   comment_reaction: "🐾",
   follow:           "😻",
+  follow_request:   "🐱",
   reply:            "💬",
   comment:          "💬",
   mention:          "📣",
@@ -27,6 +29,7 @@ const TYPE_LABEL: Record<Notification["type"], string> = {
   reaction:         "reacted to your post",
   comment_reaction: "reacted to your comment",
   follow:           "started following you",
+  follow_request:   "wants to follow you",
   reply:            "replied to your comment",
   comment:          "commented on your post",
   mention:          "mentioned you",
@@ -49,8 +52,8 @@ function initials(name?: string | null) {
   return name?.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2) ?? "??";
 }
 
-function notificationHref(n: import("@/types").Notification): string {
-  if (n.type === "follow") return `/profile/${n.actor?.username ?? ""}`;
+function notificationHref(n: Notification): string {
+  if (n.type === "follow" || n.type === "follow_request") return `/profile/${n.actor?.username ?? ""}`;
   if (
     (n.type === "comment" || n.type === "reply" || n.type === "comment_reaction") &&
     n.post_id && n.comment_id
@@ -58,6 +61,8 @@ function notificationHref(n: import("@/types").Notification): string {
   if (n.post_id) return `/post/${n.post_id}`;
   return "#";
 }
+
+// ── Filter tabs ───────────────────────────────────────────────────────────────
 
 type FilterId = "all" | "reaction" | "comment" | "follow" | "mention";
 
@@ -78,6 +83,130 @@ function matchesFilter(n: Notification, filter: FilterId): boolean {
   return true;
 }
 
+// ── Follow Requests section ───────────────────────────────────────────────────
+
+function FollowRequestsSection({ userId }: { userId: string }) {
+  const [requests, setRequests] = useState<FollowRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    supabase
+      .from("follow_requests")
+      .select("*, requester:profiles!requester_id(*)")
+      .eq("target_id", userId)
+      .eq("status", "pending")
+      .order("created_at", { ascending: false })
+      .then(({ data }) => {
+        if (mounted) {
+          setRequests((data ?? []) as FollowRequest[]);
+          setLoading(false);
+        }
+      });
+
+    // Realtime: new follow requests
+    const channel = supabase
+      .channel(`follow-requests:${userId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "follow_requests", filter: `target_id=eq.${userId}` },
+        async (payload) => {
+          if (!mounted) return;
+          const { data } = await supabase
+            .from("follow_requests")
+            .select("*, requester:profiles!requester_id(*)")
+            .eq("id", payload.new.id)
+            .single();
+          if (data && mounted) setRequests((prev) => [data as FollowRequest, ...prev]);
+        }
+      )
+      .subscribe();
+
+    return () => { mounted = false; supabase.removeChannel(channel); };
+  }, [userId]);
+
+  const accept = async (req: FollowRequest) => {
+    // 1. Mark accepted
+    const { error: updErr } = await supabase
+      .from("follow_requests")
+      .update({ status: "accepted" })
+      .eq("id", req.id);
+    if (updErr) { toast.error("Failed to accept request"); return; }
+
+    // 2. Insert follow
+    await supabase
+      .from("follows")
+      .insert({ follower_id: req.requester_id, following_id: userId });
+
+    setRequests((prev) => prev.filter((r) => r.id !== req.id));
+    toast(`${req.requester?.display_name ?? "User"} is now following you 🐾`);
+  };
+
+  const decline = async (req: FollowRequest) => {
+    const { error } = await supabase
+      .from("follow_requests")
+      .update({ status: "declined" })
+      .eq("id", req.id);
+    if (error) { toast.error("Failed to decline"); return; }
+    setRequests((prev) => prev.filter((r) => r.id !== req.id));
+    toast("Follow request declined.");
+  };
+
+  if (loading || requests.length === 0) return null;
+
+  return (
+    <section className="rounded-2xl border border-paw-pink/30 bg-paw-pink/5 overflow-hidden">
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-paw-pink/20">
+        <UserPlus size={16} weight="duotone" className="text-paw-pink" />
+        <h2 className="text-sm font-bold text-foreground">Follow Requests</h2>
+        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-paw-pink px-1.5 text-[10px] font-bold text-white">
+          {requests.length}
+        </span>
+      </div>
+      <div className="divide-y divide-border/40">
+        {requests.map((req) => (
+          <div key={req.id} className="flex items-center gap-3 px-4 py-3">
+            <Link href={`/profile/${req.requester?.username ?? ""}`}>
+              <Avatar className="h-9 w-9 shrink-0 ring-2 ring-paw-pink/20 hover:ring-paw-pink/50 transition-all">
+                <AvatarImage src={req.requester?.avatar_url ?? undefined} />
+                <AvatarFallback className="bg-paw-pink-light text-paw-pink text-xs font-bold">
+                  {initials(req.requester?.display_name)}
+                </AvatarFallback>
+              </Avatar>
+            </Link>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold leading-tight truncate">
+                {req.requester?.display_name ?? "Unknown"}
+              </p>
+              <p className="text-xs text-muted-foreground">@{req.requester?.username}</p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <motion.button
+                whileTap={{ scale: 0.9 }}
+                onClick={() => accept(req)}
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-paw-pink text-white hover:bg-paw-pink/90 transition-colors"
+                title="Accept"
+              >
+                <Check size={15} weight="bold" />
+              </motion.button>
+              <motion.button
+                whileTap={{ scale: 0.9 }}
+                onClick={() => decline(req)}
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground hover:text-destructive hover:border-destructive transition-colors"
+                title="Decline"
+              >
+                <X size={15} weight="bold" />
+              </motion.button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// ── Main AlertsView ───────────────────────────────────────────────────────────
+
 export function AlertsView() {
   const { user, loading: sessionLoading } = useSession();
   const router = useRouter();
@@ -87,7 +216,6 @@ export function AlertsView() {
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   useEffect(() => {
-    // Wait until session is resolved before deciding the user is absent
     if (sessionLoading) return;
     if (!user) { setLoading(false); return; }
     let mounted = true;
@@ -97,6 +225,8 @@ export function AlertsView() {
         .from("notifications")
         .select("*, actor:profiles!actor_id(*)")
         .eq("user_id", user.id)
+        // Exclude follow_request notifications from main stream (shown in dedicated section)
+        .neq("type", "follow_request")
         .order("created_at", { ascending: false })
         .limit(50);
       if (mounted) {
@@ -112,7 +242,7 @@ export function AlertsView() {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` },
         async (payload) => {
-          if (!mounted) return;
+          if (!mounted || payload.new.type === "follow_request") return;
           const { data } = await supabase
             .from("notifications")
             .select("*, actor:profiles!actor_id(*)")
@@ -180,6 +310,9 @@ export function AlertsView() {
         )}
       </div>
 
+      {/* Follow Requests section — private account owners only */}
+      <FollowRequestsSection userId={user.id} />
+
       {/* Filter tabs */}
       <div className="flex gap-2 flex-wrap">
         {FILTERS.map((f) => (
@@ -218,7 +351,9 @@ export function AlertsView() {
         >
           <span className="text-4xl">😴</span>
           <p className="font-semibold">
-            {filter === "all" ? "All quiet on the whisker front" : `No ${FILTERS.find((f) => f.id === filter)?.label.toLowerCase()} yet`}
+            {filter === "all"
+              ? "All quiet on the whisker front"
+              : `No ${FILTERS.find((f) => f.id === filter)?.label.toLowerCase()} yet`}
           </p>
           <p className="text-sm">
             {filter === "all"

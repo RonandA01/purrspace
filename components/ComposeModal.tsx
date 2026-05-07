@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, ImageSquare } from "@phosphor-icons/react";
+import { X, ImageSquare, Globe, Lock, CaretDown } from "@phosphor-icons/react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
@@ -21,6 +21,8 @@ export function ComposeModal() {
   const [posting, setPosting] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [visibility, setVisibility] = useState<"public" | "followers_only">("public");
+  const [showVisMenu, setShowVisMenu] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mouseDownOnBackdrop = useRef(false);
@@ -45,6 +47,8 @@ export function ComposeModal() {
     setContent("");
     setImageFile(null);
     setImagePreview(null);
+    setVisibility("public");
+    setShowVisMenu(false);
   };
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -82,7 +86,7 @@ export function ComposeModal() {
 
     const { data, error } = await supabase
       .from("posts")
-      .insert({ author_id: user.id, content: content.trim(), image_url })
+      .insert({ author_id: user.id, content: content.trim(), image_url, visibility })
       .select("*, author:profiles(*)")
       .single();
 
@@ -171,6 +175,39 @@ export function ComposeModal() {
                 </button>
               </div>
             )}
+
+            {/* Visibility selector */}
+            <div className="px-5 pb-2 relative">
+              <button
+                onClick={() => setShowVisMenu((v) => !v)}
+                className="flex items-center gap-1.5 rounded-full border border-border/60 bg-secondary/60 px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground hover:border-paw-pink/40 transition-colors"
+              >
+                {visibility === "public"
+                  ? <><Globe size={13} className="text-paw-pink" /> 🌍 Public</>
+                  : <><Lock size={13} className="text-paw-pink" /> 🐾 Followers Only</>}
+                <CaretDown size={11} className={`transition-transform ${showVisMenu ? "rotate-180" : ""}`} />
+              </button>
+              {showVisMenu && (
+                <div className="absolute left-5 bottom-full mb-1 z-10 rounded-2xl border border-border/60 bg-card shadow-lg overflow-hidden min-w-[160px]">
+                  {[
+                    { value: "public" as const, icon: "🌍", label: "Public", desc: "Anyone can see" },
+                    { value: "followers_only" as const, icon: "🐾", label: "Followers Only", desc: "Only followers" },
+                  ].map((opt) => (
+                    <button
+                      key={opt.value}
+                      onClick={() => { setVisibility(opt.value); setShowVisMenu(false); }}
+                      className={`flex items-start gap-2 w-full px-3 py-2.5 text-left hover:bg-secondary transition-colors ${visibility === opt.value ? "text-paw-pink" : "text-foreground"}`}
+                    >
+                      <span className="mt-0.5">{opt.icon}</span>
+                      <div>
+                        <p className="text-xs font-semibold">{opt.label}</p>
+                        <p className="text-[10px] text-muted-foreground">{opt.desc}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
 
             {/* Footer */}
             <div className="flex items-center justify-between px-5 py-3 border-t border-border/60">

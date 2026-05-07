@@ -682,3 +682,125 @@ create index if not exists idx_follows_following on public.follows(following_id)
 create index if not exists idx_dm_conversation   on public.direct_messages(conversation_id, created_at desc);
 create index if not exists idx_conversations_p1  on public.conversations(participant_1);
 create index if not exists idx_conversations_p2  on public.conversations(participant_2);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- MIGRATION: Private Accounts, Follow Requests & Post Visibility
+-- Run this block in Supabase Dashboard → SQL Editor
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- ── A. POSTS: add visibility column ──────────────────────────────────────
+alter table public.posts
+  add column if not exists visibility text not null default 'public'
+  check (visibility in ('public', 'followers_only'));
+
+create index if not exists idx_posts_visibility on public.posts(visibility);
+
+-- ── B. FOLLOW REQUESTS table ─────────────────────────────────────────────
+create table if not exists public.follow_requests (
+  id           uuid primary key default uuid_generate_v4(),
+  requester_id uuid not null references public.profiles(id) on delete cascade,
+  target_id    uuid not null references public.profiles(id) on delete cascade,
+  status       text not null default 'pending'
+               check (status in ('pending', 'accepted', 'declined')),
+  created_at   timestamptz not null default now(),
+  unique (requester_id, target_id),
+  check (requester_id <> target_id)
+);
+
+alter table public.follow_requests enable row level security;
+
+drop policy if exists "Users can see own follow requests" on public.follow_requests;
+create policy "Users can see own follow requests"
+  on public.follow_requests for select
+  using (auth.uid() = requester_id or auth.uid() = target_id);
+
+drop policy if exists "Users can send follow requests" on public.follow_requests;
+create policy "Users can send follow requests"
+  on public.follow_requests for insert
+  with check (auth.uid() = requester_id);
+
+drop policy if exists "Target can respond to follow requests" on public.follow_requests;
+create policy "Target can respond to follow requests"
+  on public.follow_requests for update
+  using (auth.uid() = target_id) with check (auth.uid() = target_id);
+
+drop policy if exists "Requester can cancel own follow requests" on public.follow_requests;
+create policy "Requester can cancel own follow requests"
+  on public.follow_requests for delete
+  using (auth.uid() = requester_id or auth.uid() = target_id);
+
+create index if not exists idx_follow_requests_target    on public.follow_requests(target_id, status);
+create index if not exists idx_follow_requests_requester on public.follow_requests(requester_id, status);
+
+-- ── C. NOTIFICATIONS: add follow_request type ────────────────────────────
+alter table public.notifications drop constraint if exists notifications_type_check;
+alter table public.notifications add constraint notifications_type_check
+  check (type in (
+    'like', 'follow', 'follow_request', 'reply', 'mention',
+    'comment', 'share', 'reaction', 'comment_reaction'
+  ));
+
+-- ── D. TRIGGER: notify target when a follow request is sent ──────────────
+create or replace function public.handle_follow_request_notification()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  insert into public.notifications (user_id, actor_id, type)
+  values (NEW.target_id, NEW.requester_id, 'follow_request');
+  return null;
+end;
+$$;
+
+drop trigger if exists on_new_follow_request on public.follow_requests;
+create trigger on_new_follow_request
+  after insert on public.follow_requests
+  for each row execute procedure public.handle_follow_request_notification();
+
+-- ── E. UPDATE POSTS RLS: enforce visibility + private account rules ───────
+drop policy if exists "Posts are visible based on privacy" on public.posts;
+create policy "Posts are visible based on privacy"
+  on public.posts for select
+  using (
+    -- 1. Owner always sees own posts
+    auth.uid() = author_id
+
+    -- 2. Public post on a public account → anyone
+    OR (
+      visibility = 'public'
+      AND NOT EXISTS (
+        SELECT 1 FROM public.profiles WHERE id = author_id AND is_private = true
+      )
+    )
+
+    -- 3. Public post on a private account → followers only
+    OR (
+      visibility = 'public'
+      AND EXISTS (
+        SELECT 1 FROM public.profiles WHERE id = author_id AND is_private = true
+      )
+      AND EXISTS (
+        SELECT 1 FROM public.follows WHERE follower_id = auth.uid() AND following_id = author_id
+      )
+    )
+
+    -- 4. Followers-only post → followers only (regardless of account privacy)
+    OR (
+      visibility = 'followers_only'
+      AND EXISTS (
+        SELECT 1 FROM public.follows WHERE follower_id = auth.uid() AND following_id = author_id
+      )
+    )
+  );
+
+-- ── F. REALTIME for follow_requests ─────────────────────────────────────
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'follow_requests'
+  ) then
+    alter publication supabase_realtime add table public.follow_requests;
+  end if;
+end;
+$$;

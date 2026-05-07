@@ -25,6 +25,7 @@ export interface Post {
   shared_from_id: string | null;
   archived: boolean;
   archived_at: string | null;
+  visibility: "public" | "followers_only";
   created_at: string;
   author?: Profile;
   shared_from?: Post | null;
@@ -71,12 +72,21 @@ export interface Notification {
   id: string;
   user_id: string;
   actor_id: string | null;
-  type: "like" | "follow" | "reply" | "mention" | "comment" | "share" | "reaction" | "comment_reaction";
+  type: "like" | "follow" | "follow_request" | "reply" | "mention" | "comment" | "share" | "reaction" | "comment_reaction";
   post_id: string | null;
   comment_id: string | null;
   read: boolean;
   created_at: string;
   actor?: Profile;
+}
+
+export interface FollowRequest {
+  id: string;
+  requester_id: string;
+  target_id: string;
+  status: "pending" | "accepted" | "declined";
+  created_at: string;
+  requester?: Profile;
 }
 
 export interface Conversation {

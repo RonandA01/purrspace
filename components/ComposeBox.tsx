@@ -66,6 +66,7 @@ export function ComposeBox() {
       shared_from_id: null,
       archived: false,
       archived_at: null,
+      visibility: "public" as const,
       created_at: new Date().toISOString(),
       author: profile ?? undefined,
       liked_by_me: false,

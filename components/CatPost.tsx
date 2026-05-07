@@ -149,11 +149,18 @@ export function CatPost({ post, className, alwaysShowComments = false, highlight
           </Link>
 
           <div className="flex-1 min-w-0">
-            <Link href={`/profile/${displayAuthor?.username ?? ""}`} className="hover:underline">
-              <p className="font-semibold text-sm leading-tight truncate">
-                {displayAuthor?.display_name ?? "Anonymous"}
-              </p>
-            </Link>
+            <div className="flex items-center gap-1.5">
+              <Link href={`/profile/${displayAuthor?.username ?? ""}`} className="hover:underline min-w-0">
+                <p className="font-semibold text-sm leading-tight truncate">
+                  {displayAuthor?.display_name ?? "Anonymous"}
+                </p>
+              </Link>
+              {post.visibility === "followers_only" && (
+                <span className="shrink-0 rounded-full bg-paw-pink-light border border-paw-pink/20 px-1.5 py-0.5 text-[9px] font-bold text-paw-pink uppercase tracking-wide">
+                  🐾 Followers
+                </span>
+              )}
+            </div>
             <p className="text-xs text-muted-foreground">
               @{displayAuthor?.username ?? "unknown"} ·{" "}
               {formatRelativeTime(post.created_at)}

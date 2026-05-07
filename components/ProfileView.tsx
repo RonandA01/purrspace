@@ -52,6 +52,7 @@ export function ProfileView({ username }: ProfileViewProps) {
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
   const [isFollowing, setIsFollowing] = useState(false);
+  const [followRequestStatus, setFollowRequestStatus] = useState<"none" | "pending" | "accepted">("none");
   const [archivedPosts, setArchivedPosts] = useState<Post[]>([]);
   const [showArchived, setShowArchived] = useState(false);
 
@@ -96,8 +97,8 @@ export function ProfileView({ username }: ProfileViewProps) {
       setLoading(false);
 
       if (profileData) {
-        // Load follow counts
-        const [followersRes, followingRes, isFollowingRes] = await Promise.all([
+        // Load follow counts + follow state + pending request
+        const [followersRes, followingRes, isFollowingRes, followReqRes] = await Promise.all([
           supabase.from("follows").select("id", { count: "exact" }).eq("following_id", profileData.id),
           supabase.from("follows").select("id", { count: "exact" }).eq("follower_id", profileData.id),
           user
@@ -108,11 +109,23 @@ export function ProfileView({ username }: ProfileViewProps) {
                 .eq("following_id", profileData.id)
                 .maybeSingle()
             : Promise.resolve({ data: null }),
+          user && profileData.is_private
+            ? supabase
+                .from("follow_requests")
+                .select("status")
+                .eq("requester_id", user.id)
+                .eq("target_id", profileData.id)
+                .maybeSingle()
+            : Promise.resolve({ data: null }),
         ]);
         if (mounted) {
           setFollowersCount(followersRes.count ?? 0);
           setFollowingCount(followingRes.count ?? 0);
           setIsFollowing(Boolean(isFollowingRes.data));
+          const reqStatus = (followReqRes.data as { status?: string } | null)?.status;
+          setFollowRequestStatus(
+            reqStatus === "pending" ? "pending" : reqStatus === "accepted" ? "accepted" : "none"
+          );
         }
       }
     };
@@ -283,14 +296,49 @@ export function ProfileView({ username }: ProfileViewProps) {
     }
   };
 
-  const toggleFollow = async () => {
+  const handleFollowAction = async () => {
     if (!user || !profile) return;
+
+    // Unfollow (works for both public and private)
     if (isFollowing) {
-      await supabase.from("follows").delete().eq("follower_id", user.id).eq("following_id", profile.id).then((r) => r);
+      await supabase.from("follows").delete()
+        .eq("follower_id", user.id).eq("following_id", profile.id).then((r) => r);
       setIsFollowing(false);
+      setFollowRequestStatus("none");
       setFollowersCount((c) => Math.max(0, c - 1));
+      return;
+    }
+
+    if (profile.is_private) {
+      // Private account: use follow request system
+      if (followRequestStatus === "pending") {
+        // Cancel pending request
+        await supabase.from("follow_requests").delete()
+          .eq("requester_id", user.id).eq("target_id", profile.id).then((r) => r);
+        setFollowRequestStatus("none");
+        toast("Follow request cancelled.");
+      } else {
+        // Send follow request
+        const { error } = await supabase.from("follow_requests")
+          .insert({ requester_id: user.id, target_id: profile.id });
+        if (error) {
+          if (error.code === "23505") {
+            // Already exists — update to pending
+            await supabase.from("follow_requests")
+              .update({ status: "pending" })
+              .eq("requester_id", user.id).eq("target_id", profile.id);
+          } else {
+            toast.error("Failed to send follow request");
+            return;
+          }
+        }
+        setFollowRequestStatus("pending");
+        toast("Follow request sent! 🐾");
+      }
     } else {
-      await supabase.from("follows").insert({ follower_id: user.id, following_id: profile.id }).then((r) => r);
+      // Public account: instant follow
+      await supabase.from("follows")
+        .insert({ follower_id: user.id, following_id: profile.id }).then((r) => r);
       setIsFollowing(true);
       setFollowersCount((c) => c + 1);
     }
@@ -425,14 +473,18 @@ export function ProfileView({ username }: ProfileViewProps) {
               </motion.button>
               <motion.button
                 whileTap={{ scale: 0.95 }}
-                onClick={toggleFollow}
+                onClick={handleFollowAction}
                 className={
-                  isFollowing
+                  isFollowing || followRequestStatus === "pending"
                     ? "rounded-full border border-border px-4 py-1.5 text-sm font-semibold hover:bg-secondary transition-colors"
                     : "rounded-full bg-paw-pink px-4 py-1.5 text-sm font-semibold text-white hover:bg-paw-pink/90 transition-colors"
                 }
               >
-                {isFollowing ? "Following" : "Follow"}
+                {isFollowing
+                  ? "Following"
+                  : followRequestStatus === "pending"
+                  ? "Requested"
+                  : "Follow"}
               </motion.button>
             </>
           ) : null}
